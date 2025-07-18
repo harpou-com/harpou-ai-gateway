@@ -1,13 +1,18 @@
-from app import create_app, socketio
+from dotenv import load_dotenv
 
-# Crée une instance de l'application en utilisant la factory.
-# Le mode debug est souvent contrôlé par une variable d'environnement
-# comme FLASK_ENV ou FLASK_DEBUG.
-app = create_app(debug=True)
+# Charger les variables d'environnement
+load_dotenv()
 
+
+from app import create_app
+from app.extensions import socketio
+
+
+# La variable 'app' doit être globale pour que Gunicorn puisse la trouver (run:app)
+app = create_app(init_socketio=True)
+
+# Note: Pour la production, vous utilisez Gunicorn (d'après votre Dockerfile),
+# donc ce bloc n'est utilisé que pour le développement local.
 if __name__ == '__main__':
-    # Utilise socketio.run() au lieu de app.run() pour démarrer le serveur.
-    # Ceci est nécessaire pour que le serveur de développement supporte les WebSockets.
-    # L'hôte 0.0.0.0 est nécessaire pour que l'application soit accessible
-    # depuis l'extérieur du conteneur Docker.
-    socketio.run(app, host='0.0.0.0', port=5000)
+    # Lancement du serveur avec SocketIO pour supporter WebSocket en dev
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)

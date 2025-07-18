@@ -1,65 +1,59 @@
+
 import os
 from flask import Flask
-from flask_socketio import SocketIO
-from celery import Celery, Task
+from dotenv import load_dotenv
 
-# --- Configuration via Variables d'Environnement ---
-# Les variables d'environnement sont lues au démarrage.
-# On fournit des valeurs par défaut pour faciliter le développement local.
+# Importer les extensions
+from .extensions import celery, socketio
 
-# URL de Redis utilisée par Celery et SocketIO.
-# Dans un environnement conteneurisé (Docker), vous utiliseriez le nom du service,
-# par exemple 'redis://redis:6379/0'.
-REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
-
-# Clé secrète pour Flask, essentielle pour la sécurité des sessions.
-FLASK_SECRET_KEY = os.environ.get('FLASK_SECRET_KEY', 'une-cle-secrete-pour-le-developpement')
+# Charger les variables d'environnement depuis le fichier .env
+# C'est une bonne pratique de le faire au début.
+load_dotenv()
 
 
-# --- Initialisation des Extensions ---
-
-# 1. Flask-SocketIO
-# L'argument `message_queue` est crucial si vous utilisez plusieurs workers (ex: Gunicorn).
-# Il permet aux différents processus de communiquer entre eux via Redis.
-socketio = SocketIO(message_queue=REDIS_URL)
-
-# 2. Celery
-# On configure Celery pour utiliser Redis comme "broker" (file d'attente des tâches)
-# et comme "backend" (stockage des résultats des tâches).
-celery = Celery(__name__, broker=REDIS_URL, backend=REDIS_URL)
-
-
-# --- Factory de l'application ---
-
-def create_app(debug=False):
+def create_app(config_object=None, init_socketio=True):
     """
-    Crée et configure une instance de l'application Flask.
-    Ce patron de conception (Application Factory) est une bonne pratique.
+    Application factory, voir : http://flask.pocoo.org/docs/patterns/appfactories/
+    Le paramètre init_socketio permet de désactiver l'initialisation de SocketIO (utile pour Celery).
     """
     app = Flask(__name__)
-    app.debug = debug
-    app.config['SECRET_KEY'] = FLASK_SECRET_KEY
 
-    # 3. Liaison de Celery avec le contexte de l'application Flask
-    # Cette étape garantit que les tâches Celery s'exécutent avec le contexte
-    # de l'application Flask actif. Ainsi, les tâches peuvent accéder à `current_app`,
-    # aux configurations, aux extensions, etc.
-    class ContextTask(Task):
+    # Configuration depuis les variables d'environnement
+    app.config.from_mapping(
+        SECRET_KEY=os.environ.get('FLASK_SECRET_KEY'),
+        CELERY_BROKER_URL=os.environ.get('CELERY_BROKER_URL'),
+        CELERY_RESULT_BACKEND=os.environ.get('CELERY_RESULT_BACKEND'),
+    )
+
+    # Initialiser Celery
+    init_celery(app)
+
+    # Initialiser SocketIO avec l'app Flask (sauf pour les workers Celery)
+    if init_socketio:
+        socketio.init_app(app, async_mode="eventlet")
+
+    # Enregistrer les routes (Blueprints)
+    # L'importation est faite ici pour éviter les dépendances circulaires
+    with app.app_context():
+        from . import routes
+        # Si vous utilisez des Blueprints, enregistrez-les ici.
+        # Exemple: app.register_blueprint(routes.bp)
+
+    return app
+
+def init_celery(app: Flask):
+    """Initialise et configure l'instance Celery."""
+    celery.conf.update(
+        broker_url=app.config["CELERY_BROKER_URL"],
+        result_backend=app.config["CELERY_RESULT_BACKEND"],
+    )
+
+    # Crée une sous-classe de Task qui intègre le contexte de l'application Flask.
+    # Cela garantit que les tâches Celery s'exécutent avec le contexte de l'application
+    # (accès à app.config, etc.)
+    class ContextTask(celery.Task):
         def __call__(self, *args, **kwargs):
             with app.app_context():
                 return self.run(*args, **kwargs)
 
     celery.Task = ContextTask
-
-    # 4. Initialisation de SocketIO avec l'application
-    socketio.init_app(app)
-
-    # 5. Importer et enregistrer les Blueprints, événements et tâches
-    # On importe ici pour éviter les dépendances circulaires.
-    from . import routes, events, tasks
-    app.register_blueprint(routes.bp)
-    
-    # Attacher l'instance Celery configurée à l'application
-    app.celery_app = celery
-
-    return app

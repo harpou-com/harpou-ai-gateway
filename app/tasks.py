@@ -1,8 +1,10 @@
 import time
-from . import celery
+from .extensions import celery
 
 @celery.task
 def long_running_task():
+
+
     """
     Une tâche de démonstration qui attend 5 secondes et retourne un message.
     """

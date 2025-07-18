@@ -6,7 +6,7 @@
 # envoyés par les clients via WebSocket.
 # ============================================================================
 
-from . import socketio
+from .extensions import socketio
 
 # Exemple de gestionnaire d'événement
 @socketio.on('connect')

@@ -35,4 +35,4 @@ RUN /app/__pypackages__/3.11/bin/pip install gunicorn eventlet
 EXPOSE 5000
 
 # Commande par défaut pour démarrer le serveur gunicorn avec socketio
-CMD ["/app/__pypackages__/3.11/bin/gunicorn", "--worker-class", "eventlet", "-w", "1", "--bind", "0.0.0.0:5000", "run:app"]
+CMD ["/app/__pypackages__/3.11/bin/gunicorn", "--worker-class", "eventlet", "-w", "2", "--bind", "0.0.0.0:5000", "run:app"]
