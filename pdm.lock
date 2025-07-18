@@ -5,7 +5,7 @@
 groups = ["default"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:e58b0ee0a33f839ab0fd9055d2bdac25e28b504456d54d1d157dd6a56e7eeb6c"
+content_hash = "sha256:a450b42c55294d376d6b4f5d2b0036df9992273a3c60136c15e22863a655db5f"
 
 [[metadata.targets]]
 requires_python = ">=3.11"
@@ -203,6 +203,21 @@ dependencies = [
 files = [
     {file = "flask-3.1.1-py3-none-any.whl", hash = "sha256:07aae2bb5eaf77993ef57e357491839f5fd9f4dc281593a81a9e4d79a24f295c"},
     {file = "flask-3.1.1.tar.gz", hash = "sha256:284c7b8f2f58cb737f0cf1c30fd7eaf0ccfcde196099d24ecede3fc2005aa59e"},
+]
+
+[[package]]
+name = "flask-cors"
+version = "6.0.1"
+requires_python = "<4.0,>=3.9"
+summary = "A Flask extension simplifying CORS support"
+groups = ["default"]
+dependencies = [
+    "Werkzeug>=0.7",
+    "flask>=0.9",
+]
+files = [
+    {file = "flask_cors-6.0.1-py3-none-any.whl", hash = "sha256:c7b2cbfb1a31aa0d2e5341eea03a6805349f7a61647daee1a15c46bbe981494c"},
+    {file = "flask_cors-6.0.1.tar.gz", hash = "sha256:d81bcb31f07b0985be7f48406247e9243aced229b7747219160a0559edd678db"},
 ]
 
 [[package]]

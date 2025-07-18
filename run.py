@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch()
+
 from dotenv import load_dotenv
 
 # Charger les variables d'environnement

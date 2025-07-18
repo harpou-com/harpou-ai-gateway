@@ -1,12 +1,21 @@
-from dotenv import load_dotenv
-
-# Charger les variables d'environnement avant toute autre importation
-# pour s'assurer que create_app() les voit.
-load_dotenv()
-
+# celery_worker.py
 from app import create_app
-from app.extensions import celery
+import os
 
-# Crée l'application Flask pour que Celery puisse utiliser sa configuration, sans initialiser SocketIO
+# Crée l'application Flask pour que Celery puisse utiliser sa configuration.
 app = create_app(init_socketio=False)
-app.app_context().push()
+
+# Initialiser socketio pour la communication Redis/pubsub (pas de serveur HTTP)
+from app.extensions import socketio
+socketio.init_app(
+    app,
+    message_queue=os.environ.get('REDIS_URL'),
+    cors_allowed_origins="*"
+)
+
+# Cette ligne est cruciale : elle force l'importation de app/tasks.py
+# pour que Celery découvre et enregistre les tâches définies avec @celery.task
+from app import tasks
+
+# Expose l'objet celery pour la CLI Celery
+from app.extensions import celery

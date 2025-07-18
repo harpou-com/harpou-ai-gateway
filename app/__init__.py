@@ -1,9 +1,9 @@
 
-
 import os
 from flask import Flask
 from dotenv import load_dotenv
 from .extensions import celery, socketio
+from flask_cors import CORS
 
 # Charger les variables d'environnement dès le début
 load_dotenv()
@@ -13,7 +13,10 @@ def create_app(config_object=None, init_socketio=True):
     Application Factory : initialise Flask, Celery, SocketIO, Blueprints et événements.
     - init_socketio : True pour serveur web, False pour worker Celery
     """
+
     app = Flask(__name__)
+    # Active CORS pour toutes les routes HTTP (fetch cross-origin)
+    CORS(app, origins="*")
 
     # Configuration depuis les variables d'environnement
     app.config.from_mapping(
@@ -27,11 +30,15 @@ def create_app(config_object=None, init_socketio=True):
 
     # Initialiser SocketIO (uniquement pour le serveur web)
     if init_socketio:
-        socketio.init_app(app, async_mode="eventlet")
+        socketio.init_app(
+            app, 
+            message_queue=app.config['CELERY_BROKER_URL'],
+            cors_allowed_origins="*" # Autorise toutes les origines
+        )
 
     # Enregistrer les Blueprints
-    from .routes import bp as main_bp
-    app.register_blueprint(main_bp)
+    from . import routes
+    app.register_blueprint(routes.bp)
 
     # Enregistrer les gestionnaires d'événements SocketIO
     if init_socketio:
@@ -41,10 +48,7 @@ def create_app(config_object=None, init_socketio=True):
 
 def init_celery(app: Flask):
     """Initialise et configure l'instance Celery avec le contexte Flask."""
-    celery.conf.update(
-        broker_url=app.config["CELERY_BROKER_URL"],
-        result_backend=app.config["CELERY_RESULT_BACKEND"],
-    )
+    celery.conf.update(app.config)
 
     class ContextTask(celery.Task):
         def __call__(self, *args, **kwargs):

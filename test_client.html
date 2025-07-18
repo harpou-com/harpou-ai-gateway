@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Client pour AI Gateway</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; background-color: #f4f4f9; }
+        #logs { border: 1px solid #ccc; padding: 1em; height: 300px; overflow-y: scroll; background-color: #fff; }
+        .log-entry { margin-bottom: 0.5em; }
+        .connect { color: green; }
+        .disconnect { color: red; }
+        .event { color: blue; }
+        .info { color: #555; }
+        button { padding: 0.8em 1.2em; font-size: 1em; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Client de Test pour HARPOU AI Gateway</h1>
+    
+    <div>
+        <label for="server-url">URL du Serveur:</label>
+        <input type="text" id="server-url" value="http://localhost:5001" size="30">
+        <button id="connectBtn">Connecter</button>
+        <button id="disconnectBtn" disabled>Déconnecter</button>
+    </div>
+
+    <hr>
+    
+    <button id="triggerTaskBtn" disabled>Déclencher la Tâche de 5 secondes</button>
+    
+    <hr>
+
+    <h3>Logs:</h3>
+    <div id="logs"></div>
+
+    <!-- Importation de la bibliothèque client Socket.IO -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+    <script>
+        const serverUrlInput = document.getElementById('server-url');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const triggerTaskBtn = document.getElementById('triggerTaskBtn');
+        const logsContainer = document.getElementById('logs');
+
+        let socket;
+
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logsContainer.appendChild(entry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        connectBtn.addEventListener('click', () => {
+            const url = serverUrlInput.value;
+            log(`Tentative de connexion à ${url}...`);
+
+            // Initialiser la connexion WebSocket
+            socket = io(url);
+
+            socket.on('connect', () => {
+                log('Connecté au serveur avec succès !', 'connect');
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                triggerTaskBtn.disabled = false;
+            });
+
+            socket.on('disconnect', () => {
+                log('Déconnecté du serveur.', 'disconnect');
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                triggerTaskBtn.disabled = true;
+            });
+
+            socket.on('connect_error', (err) => {
+                log(`Erreur de connexion : ${err.message}`, 'disconnect');
+            });
+
+            // Écouter l'événement 'task_result' envoyé par le worker
+            socket.on('task_result', (data) => {
+                // Affiche le payload brut dans la console navigateur
+                console.log('Payload reçu [task_result] :', data);
+                // Affichage détaillé : SID, ID tâche, timestamp
+                if (data && data.status === 'success') {
+                    log(`Succès : ${data.message} | ID tâche : ${data.task_id} | SID : ${socket.id} | Reçu à : ${new Date().toLocaleTimeString()}`, 'event');
+                } else if (data && data.status === 'error') {
+                    log(`Erreur : ${data.message} | SID : ${socket.id} | Reçu à : ${new Date().toLocaleTimeString()}`, 'disconnect');
+                } else {
+                    log(`Événement reçu [task_result]: ${JSON.stringify(data)} | SID : ${socket.id} | Reçu à : ${new Date().toLocaleTimeString()}`, 'event');
+                }
+            });
+        });
+
+        disconnectBtn.addEventListener('click', () => {
+            if (socket) {
+                socket.disconnect();
+            }
+        });
+
+        triggerTaskBtn.addEventListener('click', () => {
+            log('Envoi de la requête pour déclencher la tâche...');
+            const url = serverUrlInput.value;
+            // On envoie le SID du client dans le body JSON
+            const sid = socket.id;
+            fetch(`${url}/trigger-task`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sid })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    log(`Réponse du serveur : Tâche démarrée (ID: ${data.message})`);
+                })
+                .catch(err => {
+                    log(`Erreur lors du déclenchement de la tâche : ${err}`, 'disconnect');
+                });
+        });
+    </script>
+</body>
+</html>

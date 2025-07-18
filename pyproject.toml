@@ -12,6 +12,7 @@ dependencies = [
     "redis>=5.0.1",
     "python-dotenv>=1.0.0",
     "eventlet>=0.33.3", # Nécessaire pour le serveur de développement SocketIO
+    "flask-cors>=3.0.0",
 ]
 requires-python = ">=3.11"
 readme = "README.md"
