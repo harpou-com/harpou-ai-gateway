@@ -1,3 +1,15 @@
+@celery.task(bind=True)
+def orchestrator_task(self, user_question, sid):
+    """
+    Tâche Celery qui orchestre la décision de l'IA pour une question utilisateur.
+    Appelle decide_llm_action et affiche la décision dans la console du worker.
+
+    Args:
+        user_question (str): La question posée par l'utilisateur.
+        sid (str): Session ID du client.
+    """
+    decision = decide_llm_action(user_question)
+    print(f"[orchestrator_task] Décision IA pour SID {sid} : {decision}")
 """
 Catalogue d'outils disponibles pour l'API et logique de décision LLM.
 """
