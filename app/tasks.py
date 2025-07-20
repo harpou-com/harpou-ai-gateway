@@ -121,7 +121,9 @@ def search_web_task(self, user_query, sid):
     socketio.emit('task_result', payload, room=sid)
     return None
 
+
 import time
+from .extensions import celery
 
 @celery.task(bind=True)
 def long_running_task(self, sid):
