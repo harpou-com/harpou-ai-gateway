@@ -1,3 +1,67 @@
+"""
+Catalogue d'outils disponibles pour l'API et logique de décision LLM.
+"""
+
+# Chaque outil est défini comme un dictionnaire pour faciliter l'extension et la maintenance.
+AVAILABLE_TOOLS = [
+    {
+        "name": "search_web",
+        "description": (
+            "Outil permettant d'effectuer des recherches sur internet afin d'obtenir des informations récentes "
+            "(par exemple : météo, actualités, résultats sportifs, etc.)."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "La requête de recherche à envoyer sur le web."
+                }
+            },
+            "required": ["query"]
+        }
+    }
+]
+
+def decide_llm_action(user_question):
+    """
+    Simule la décision d'un LLM pour déterminer si une question utilisateur nécessite l'appel d'un outil
+    (par exemple, une recherche web) ou une réponse directe.
+
+    Args:
+        user_question (str): La question posée par l'utilisateur.
+
+    Returns:
+        dict: Un dictionnaire décrivant l'action à entreprendre.
+            - Si une recherche web est suggérée, retourne :
+                {
+                    "action": "call_tool",
+                    "tool_name": "search_web",
+                    "parameters": {"query": user_question}
+                }
+            - Sinon, retourne :
+                {
+                    "action": "respond",
+                    "message": "Réponse directe simulée."
+                }
+    """
+    print(f"[decide_llm_action] Question reçue : {user_question!r}")
+    keywords = ["météo", "actualités", "qui est"]
+    if any(kw.lower() in user_question.lower() for kw in keywords):
+        decision = {
+            "action": "call_tool",
+            "tool_name": "search_web",
+            "parameters": {"query": user_question}
+        }
+        print(f"[decide_llm_action] Décision : appel de l'outil 'search_web' avec paramètres {decision['parameters']}")
+        return decision
+    else:
+        decision = {
+            "action": "respond",
+            "message": "Réponse directe simulée."
+        }
+        print(f"[decide_llm_action] Décision : réponse directe.")
+        return decision
 import requests
 import json
 from .extensions import celery, socketio
