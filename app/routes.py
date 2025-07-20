@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from .tasks import search_web_task, long_running_task
+from .tasks import search_web_task, long_running_task, orchestrator_task
 
 bp = Blueprint('main', __name__)
 
@@ -14,24 +14,19 @@ def chat():
     """
     data = request.get_json(force=True)
     user_question = data.get('question') if data else None
-    if not user_question:
-        return jsonify({'error': "Le champ 'question' est requis."}), 400
+    sid = data.get('sid') if data else None
+    if not user_question or not sid:
+        return jsonify({'error': "Les champs 'question' et 'sid' sont requis."}), 400
 
-    decision = decide_llm_action(user_question)
+    # Lancement asynchrone de la tâche d'orchestration
+    task = orchestrator_task.delay(user_question, sid)
 
-    # Structure de la réponse selon l'action décidée
-    if decision.get("action") == "call_tool":
-        response = {
-            "type": "tool_call",
-            "tool_name": decision.get("tool_name"),
-            "parameters": decision.get("parameters")
-        }
-    else:
-        response = {
-            "type": "direct_response",
-            "message": decision.get("message")
-        }
-    return jsonify(response), 200
+    response = {
+        "status": "accepted",
+        "task_id": task.id,
+        "message": "La question a été transmise à l'orchestrateur IA pour traitement."
+    }
+    return jsonify(response), 202
 
 @bp.route('/')
 def index():
