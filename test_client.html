@@ -28,6 +28,7 @@
     <hr>
     
     <button id="triggerTaskBtn" disabled>Déclencher la Tâche de 5 secondes</button>
+    <button id="chatBtn" disabled>Envoyer une question à /chat</button>
     
     <hr>
 
@@ -42,6 +43,7 @@
         const connectBtn = document.getElementById('connectBtn');
         const disconnectBtn = document.getElementById('disconnectBtn');
         const triggerTaskBtn = document.getElementById('triggerTaskBtn');
+        const chatBtn = document.getElementById('chatBtn');
         const logsContainer = document.getElementById('logs');
 
         let socket;
@@ -66,6 +68,7 @@
                 connectBtn.disabled = true;
                 disconnectBtn.disabled = false;
                 triggerTaskBtn.disabled = false;
+                chatBtn.disabled = false;
             });
 
             socket.on('disconnect', () => {
@@ -73,7 +76,35 @@
                 connectBtn.disabled = false;
                 disconnectBtn.disabled = true;
                 triggerTaskBtn.disabled = true;
+                chatBtn.disabled = true;
             });
+        // Test /chat : demande une question, récupère le sid, envoie la requête POST à /chat
+        chatBtn.addEventListener('click', async () => {
+            if (!socket || !socket.id) {
+                log('Non connecté au serveur.', 'disconnect');
+                return;
+            }
+            const user_question = prompt('Quelle question souhaitez-vous poser ?');
+            if (!user_question) {
+                log('Aucune question saisie.', 'info');
+                return;
+            }
+            const sid = socket.id;
+            const url = serverUrlInput.value;
+            log(`Envoi de la question à /chat : "${user_question}" (SID: ${sid})`);
+            try {
+                const response = await fetch(`${url}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: user_question, sid: sid })
+                });
+                const data = await response.json();
+                console.log('Réponse du serveur /chat :', data);
+                log(`Réponse du serveur /chat : ${JSON.stringify(data)}`);
+            } catch (err) {
+                log(`Erreur lors de la requête /chat : ${err}`, 'disconnect');
+            }
+        });
 
             socket.on('connect_error', (err) => {
                 log(`Erreur de connexion : ${err.message}`, 'disconnect');
@@ -83,11 +114,22 @@
             socket.on('task_result', (data) => {
                 // Affiche le payload brut dans la console navigateur
                 console.log('Payload reçu [task_result] :', data);
-                // Affichage détaillé : SID, ID tâche, timestamp
-                if (data && data.status === 'success') {
+                // Si c'est une recherche web, afficher les résultats
+                if (data && Array.isArray(data.results)) {
+                    if (data.results.length > 0) {
+                        log(`Résultats de la recherche pour "${data.query}" :`, 'event');
+                        data.results.forEach((res, idx) => {
+                            log(`#${res.rank} : ${res.title} — ${res.content} [${res.url}]`, 'event');
+                        });
+                    } else if (data.status === 'empty') {
+                        log(`Aucun résultat trouvé pour "${data.query}".`, 'event');
+                    } else if (data.status === 'error') {
+                        log(`Erreur lors de la recherche : ${data.error}`, 'disconnect');
+                    }
+                } else if (data && data.status === 'success') {
                     log(`Succès : ${data.message} | ID tâche : ${data.task_id} | SID : ${socket.id} | Reçu à : ${new Date().toLocaleTimeString()}`, 'event');
                 } else if (data && data.status === 'error') {
-                    log(`Erreur : ${data.message} | SID : ${socket.id} | Reçu à : ${new Date().toLocaleTimeString()}`, 'disconnect');
+                    log(`Erreur : ${data.message || data.error} | SID : ${socket.id} | Reçu à : ${new Date().toLocaleTimeString()}`, 'disconnect');
                 } else {
                     log(`Événement reçu [task_result]: ${JSON.stringify(data)} | SID : ${socket.id} | Reçu à : ${new Date().toLocaleTimeString()}`, 'event');
                 }
