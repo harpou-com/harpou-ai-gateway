@@ -30,4 +30,4 @@ distribution = false
 
 [tool.pdm.scripts]
 start = "pdm run python run.py"
-worker = "pdm run celery -A celery_worker.celery worker --loglevel=info"
+worker = "python worker_launcher.py -A celery_worker.celery worker --loglevel=info"

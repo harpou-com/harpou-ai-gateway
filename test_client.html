@@ -64,7 +64,7 @@
             socket = io(url);
 
             socket.on('connect', () => {
-                log('Connecté au serveur avec succès !', 'connect');
+                log(`Connecté au serveur avec succès ! (SID: ${socket.id})`, 'connect');
                 connectBtn.disabled = true;
                 disconnectBtn.disabled = false;
                 triggerTaskBtn.disabled = false;
@@ -96,7 +96,7 @@
                 const response = await fetch(`${url}/chat`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: user_question, sid: sid })
+                    body: JSON.stringify({ question: user_question, sid: sid })
                 });
                 const data = await response.json();
                 console.log('Réponse du serveur /chat :', data);
@@ -130,6 +130,8 @@
                     log(`Succès : ${data.message} | ID tâche : ${data.task_id} | SID : ${socket.id} | Reçu à : ${new Date().toLocaleTimeString()}`, 'event');
                 } else if (data && data.status === 'error') {
                     log(`Erreur : ${data.message || data.error} | SID : ${socket.id} | Reçu à : ${new Date().toLocaleTimeString()}`, 'disconnect');
+                } else if (data && data.status === 'final_answer') {
+                    log(`Réponse finale reçue : ${data.message}`, 'connect');
                 } else {
                     log(`Événement reçu [task_result]: ${JSON.stringify(data)} | SID : ${socket.id} | Reçu à : ${new Date().toLocaleTimeString()}`, 'event');
                 }

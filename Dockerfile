@@ -18,6 +18,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Créer un utilisateur et un groupe non-root pour la sécurité
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
 # Copier l'environnement virtuel depuis l'étape de build
 COPY --from=builder /app/__pypackages__/3.11 /app/__pypackages__/3.11
 
@@ -30,7 +33,15 @@ ENV PYTHONPATH=/app/__pypackages__/3.11/lib
 ENV PYTHONUNBUFFERED=1
 
 # Installer gunicorn/eventlet pour le serveur de production
+# Recommandation : Pour une meilleure gestion, ajoutez gunicorn et eventlet
+# aux dépendances de votre fichier pyproject.toml.
 RUN /app/__pypackages__/3.11/bin/pip install gunicorn eventlet
+
+# Changer le propriétaire du répertoire de l'application pour l'utilisateur non-root
+RUN chown -R appuser:appgroup /app
+
+# Basculer vers l'utilisateur non-privilégié
+USER appuser
 
 EXPOSE 5000
 

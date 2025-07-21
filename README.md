@@ -65,3 +65,4 @@ Production (main branch) : S'appuie sur des images Docker immuables construites 
 Ce projet est actuellement en développement actif. Pour toute suggestion ou contribution, veuillez ouvrir une "issue" ou une "pull request".
 
 Ce projet est au cœur du Hub HARPOU, une initiative visant à créer un écosystème d'IA personnel, privé et puissant.
+

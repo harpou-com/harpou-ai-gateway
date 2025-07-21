@@ -21,8 +21,9 @@ def create_app(config_object=None, init_socketio=True):
     # Configuration depuis les variables d'environnement
     app.config.from_mapping(
         SECRET_KEY=os.environ.get('FLASK_SECRET_KEY'),
-        CELERY_BROKER_URL=os.environ.get('CELERY_BROKER_URL'),
-        CELERY_RESULT_BACKEND=os.environ.get('CELERY_RESULT_BACKEND'),
+        # Configuration Celery avec les clés en minuscules (recommandé pour Celery 5+)
+        broker_url=os.environ.get('CELERY_BROKER_URL'),
+        result_backend=os.environ.get('CELERY_RESULT_BACKEND'),
     )
 
     # Initialiser Celery
@@ -32,7 +33,6 @@ def create_app(config_object=None, init_socketio=True):
     if init_socketio:
         socketio.init_app(
             app, 
-            message_queue=app.config['CELERY_BROKER_URL'],
             cors_allowed_origins="*" # Autorise toutes les origines
         )
 
