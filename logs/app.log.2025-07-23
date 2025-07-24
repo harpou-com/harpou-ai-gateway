@@ -1,0 +1,860 @@
+2025-07-23 11:33:57,093 - werkzeug - WARNING -  * Debugger is active!
+2025-07-23 11:33:57,094 - werkzeug - INFO -  * Debugger PIN: 119-514-256
+2025-07-23 11:34:50,548 - werkzeug - INFO -  * Detected change in '/app/tests/test_config.py', reloading
+2025-07-23 11:34:53,915 - werkzeug - WARNING -  * Debugger is active!
+2025-07-23 11:34:53,915 - werkzeug - INFO -  * Debugger PIN: 119-514-256
+2025-07-23 11:35:33,182 - werkzeug - INFO -  * Detected change in '/app/tests/test_config.py', reloading
+2025-07-23 11:35:36,912 - werkzeug - WARNING -  * Debugger is active!
+2025-07-23 11:35:36,913 - werkzeug - INFO -  * Debugger PIN: 119-514-256
+2025-07-23 11:36:09,436 - werkzeug - INFO -  * Detected change in '/app/tests/test_config.py', reloading
+2025-07-23 11:36:13,196 - werkzeug - WARNING -  * Debugger is active!
+2025-07-23 11:36:13,197 - werkzeug - INFO -  * Debugger PIN: 119-514-256
+2025-07-23 11:53:13,448 - werkzeug - INFO -  * Detected change in '/app/app/__init__.py', reloading
+ug - WARNING -  * Debugger is active!
+2025-07-23 11:40:13,066 - werkzeug - INFO -  * Debugger PIN: 107-618-036
+2025-07-23 11:53:17,759 - app - INFO - ==================================================
+2025-07-23 11:53:17,759 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 11:53:17,759 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 11:53:17,760 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 11:53:17,760 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 11:53:17,761 - app - INFO -   - SearXNG Base URL: https://searxng.harpou.com
+2025-07-23 11:53:17,761 - app - INFO -   - Log Level: info
+2025-07-23 11:53:17,761 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 11:53:17,761 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 11:53:17,762 - app - INFO -     - Backend: ollama_local
+2025-07-23 11:53:17,762 - app - INFO -       - Type: ollama
+2025-07-23 11:53:17,763 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 11:53:17,763 - app - INFO -       - Default Model: llama3
+2025-07-23 11:53:17,763 - app - INFO -       - Auto Load Models: True
+2025-07-23 11:53:17,764 - app - INFO -     - Backend: openai_cloud
+2025-07-23 11:53:17,764 - app - INFO -       - Type: openai
+2025-07-23 11:53:17,764 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 11:53:17,764 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 11:53:17,765 - app - INFO -       - Auto Load Models: False
+2025-07-23 11:53:17,765 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 11:53:17,765 - app - INFO -       - Type: openai
+2025-07-23 11:53:17,766 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 11:53:17,766 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 11:53:17,766 - app - INFO -       - Auto Load Models: True
+2025-07-23 11:53:17,767 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 11:53:17,767 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 11:53:17,767 - app - INFO - ==================================================
+2025-07-23 12:09:20,680 - app - INFO - ==================================================
+2025-07-23 12:09:20,680 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:09:20,680 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:09:20,681 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:09:20,681 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:09:20,681 - app - INFO -   - SearXNG Base URL: https://searxng.harpou.com
+2025-07-23 12:09:20,681 - app - INFO -   - Log Level: info
+2025-07-23 12:09:20,681 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:09:20,682 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:09:20,682 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:09:20,682 - app - INFO -       - Type: ollama
+2025-07-23 12:09:20,682 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:09:20,682 - app - INFO -       - Default Model: llama3
+2025-07-23 12:09:20,682 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:09:20,683 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:09:20,683 - app - INFO -       - Type: openai
+2025-07-23 12:09:20,683 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:09:20,683 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:09:20,683 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:09:20,683 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:09:20,684 - app - INFO -       - Type: openai
+2025-07-23 12:09:20,684 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:09:20,684 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:09:20,684 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:09:20,684 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:09:20,684 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:09:20,685 - app - INFO - ==================================================
+2025-07-23 12:09:23,627 - app - INFO - ==================================================
+2025-07-23 12:09:23,628 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:09:23,628 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:09:23,628 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:09:23,628 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:09:23,629 - app - INFO -   - SearXNG Base URL: https://searxng.harpou.com
+2025-07-23 12:09:23,629 - app - INFO -   - Log Level: info
+2025-07-23 12:09:23,629 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:09:23,629 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:09:23,629 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:09:23,630 - app - INFO -       - Type: ollama
+2025-07-23 12:09:23,630 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:09:23,631 - app - INFO -       - Default Model: llama3
+2025-07-23 12:09:23,631 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:09:23,631 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:09:23,631 - app - INFO -       - Type: openai
+2025-07-23 12:09:23,631 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:09:23,632 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:09:23,632 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:09:23,632 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:09:23,632 - app - INFO -       - Type: openai
+2025-07-23 12:09:23,635 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:09:23,635 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:09:23,636 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:09:23,636 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:09:23,636 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:09:23,637 - app - INFO - ==================================================
+2025-07-23 12:09:23,657 - werkzeug - INFO -  * Restarting with stat
+2025-07-23 12:09:26,423 - app - INFO - ==================================================
+2025-07-23 12:09:26,424 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:09:26,424 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:09:26,424 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:09:26,424 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:09:26,424 - app - INFO -   - SearXNG Base URL: https://searxng.harpou.com
+2025-07-23 12:09:26,424 - app - INFO -   - Log Level: info
+2025-07-23 12:09:26,425 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:09:26,425 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:09:26,425 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:09:26,425 - app - INFO -       - Type: ollama
+2025-07-23 12:09:26,425 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:09:26,426 - app - INFO -       - Default Model: llama3
+2025-07-23 12:09:26,426 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:09:26,426 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:09:26,426 - app - INFO -       - Type: openai
+2025-07-23 12:09:26,426 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:09:26,426 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:09:26,427 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:09:26,427 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:09:26,427 - app - INFO -       - Type: openai
+2025-07-23 12:09:26,427 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:09:26,427 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:09:26,427 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:09:26,428 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:09:26,428 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:09:26,428 - app - INFO - ==================================================
+2025-07-23 12:09:31,745 - werkzeug - WARNING -  * Debugger is active!
+2025-07-23 12:09:31,746 - werkzeug - INFO -  * Debugger PIN: 594-184-874
+2025-07-23 12:14:20,202 - app - INFO - ==================================================
+2025-07-23 12:14:20,202 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:14:20,202 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:14:20,202 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:14:20,202 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:14:20,203 - app - INFO -   - SearXNG Base URL: https://searxng.harpou.com
+2025-07-23 12:14:20,203 - app - INFO -   - Log Level: info
+2025-07-23 12:14:20,203 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:14:20,203 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:14:20,203 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:14:20,203 - app - INFO -       - Type: ollama
+2025-07-23 12:14:20,203 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:14:20,203 - app - INFO -       - Default Model: llama3
+2025-07-23 12:14:20,203 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:14:20,204 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:14:20,204 - app - INFO -       - Type: openai
+2025-07-23 12:14:20,204 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:14:20,204 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:14:20,204 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:14:20,205 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:14:20,205 - app - INFO -       - Type: openai
+2025-07-23 12:14:20,205 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:14:20,205 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:14:20,205 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:14:20,205 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:14:20,205 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:14:20,206 - app - INFO - ==================================================
+2025-07-23 12:18:33,508 - app - INFO - ==================================================
+2025-07-23 12:18:33,508 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:18:33,509 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:18:33,509 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:18:33,509 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:18:33,509 - app - INFO -   - SearXNG Base URL: https://searxng.harpou.com
+2025-07-23 12:18:33,509 - app - INFO -   - Log Level: info
+2025-07-23 12:18:33,509 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:18:33,509 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:18:33,509 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:18:33,510 - app - INFO -       - Type: ollama
+2025-07-23 12:18:33,510 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:18:33,510 - app - INFO -       - Default Model: llama3
+2025-07-23 12:18:33,510 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:18:33,510 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:18:33,510 - app - INFO -       - Type: openai
+2025-07-23 12:18:33,510 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:18:33,510 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:18:33,510 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:18:33,510 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:18:33,510 - app - INFO -       - Type: openai
+2025-07-23 12:18:33,510 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:18:33,511 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:18:33,511 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:18:33,511 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:18:33,511 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:18:33,511 - app - INFO - ==================================================
+2025-07-23 12:18:44,742 - app - INFO - ==================================================
+2025-07-23 12:18:44,742 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:18:44,742 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:18:44,742 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:18:44,742 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:18:44,742 - app - INFO -   - SearXNG Base URL: https://searxng.harpou.com
+2025-07-23 12:18:44,742 - app - INFO -   - Log Level: info
+2025-07-23 12:18:44,742 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:18:44,743 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:18:44,743 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:18:44,743 - app - INFO -       - Type: ollama
+2025-07-23 12:18:44,743 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:18:44,743 - app - INFO -       - Default Model: llama3
+2025-07-23 12:18:44,743 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:18:44,743 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:18:44,743 - app - INFO -       - Type: openai
+2025-07-23 12:18:44,743 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:18:44,743 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:18:44,744 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:18:44,744 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:18:44,744 - app - INFO -       - Type: openai
+2025-07-23 12:18:44,744 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:18:44,744 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:18:44,744 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:18:44,744 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:18:44,745 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:18:44,745 - app - INFO - ==================================================
+2025-07-23 12:18:46,776 - werkzeug - INFO -  * Restarting with stat
+2025-07-23 12:18:48,935 - app - INFO - ==================================================
+2025-07-23 12:18:48,935 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:18:48,935 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:18:48,936 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:18:48,936 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:18:48,936 - app - INFO -   - SearXNG Base URL: https://searxng.harpou.com
+2025-07-23 12:18:48,936 - app - INFO -   - Log Level: info
+2025-07-23 12:18:48,936 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:18:48,936 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:18:48,936 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:18:48,936 - app - INFO -       - Type: ollama
+2025-07-23 12:18:48,936 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:18:48,936 - app - INFO -       - Default Model: llama3
+2025-07-23 12:18:48,937 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:18:48,937 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:18:48,937 - app - INFO -       - Type: openai
+2025-07-23 12:18:48,937 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:18:48,937 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:18:48,937 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:18:48,937 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:18:48,937 - app - INFO -       - Type: openai
+2025-07-23 12:18:48,937 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:18:48,937 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:18:48,938 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:18:48,938 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:18:48,938 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:18:48,938 - app - INFO - ==================================================
+2025-07-23 12:18:50,735 - werkzeug - WARNING -  * Debugger is active!
+2025-07-23 12:18:50,735 - werkzeug - INFO -  * Debugger PIN: 102-025-054
+2025-07-23 12:33:23,313 - app - INFO - ==================================================
+2025-07-23 12:33:23,313 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:33:23,313 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:33:23,313 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:33:23,313 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:33:23,313 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 12:33:23,314 - app - INFO -   - Log Level: info
+2025-07-23 12:33:23,314 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:33:23,314 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:33:23,314 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:33:23,314 - app - INFO -       - Type: ollama
+2025-07-23 12:33:23,314 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:33:23,314 - app - INFO -       - Default Model: llama3
+2025-07-23 12:33:23,314 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:33:23,314 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:33:23,314 - app - INFO -       - Type: openai
+2025-07-23 12:33:23,314 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:33:23,314 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:33:23,315 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:33:23,315 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:33:23,315 - app - INFO -       - Type: openai
+2025-07-23 12:33:23,315 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:33:23,315 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:33:23,315 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:33:23,315 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:33:23,315 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:33:23,315 - app - INFO - ==================================================
+2025-07-23 12:33:25,013 - werkzeug - INFO -  * Restarting with stat
+2025-07-23 12:33:27,070 - app - INFO - ==================================================
+2025-07-23 12:33:27,070 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:33:27,071 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:33:27,071 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:33:27,071 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:33:27,071 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 12:33:27,071 - app - INFO -   - Log Level: info
+2025-07-23 12:33:27,071 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:33:27,071 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:33:27,072 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:33:27,072 - app - INFO -       - Type: ollama
+2025-07-23 12:33:27,072 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:33:27,072 - app - INFO -       - Default Model: llama3
+2025-07-23 12:33:27,072 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:33:27,072 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:33:27,072 - app - INFO -       - Type: openai
+2025-07-23 12:33:27,072 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:33:27,072 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:33:27,072 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:33:27,072 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:33:27,072 - app - INFO -       - Type: openai
+2025-07-23 12:33:27,073 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:33:27,073 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:33:27,073 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:33:27,073 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:33:27,073 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:33:27,073 - app - INFO - ==================================================
+2025-07-23 12:33:29,085 - app - INFO - ==================================================
+2025-07-23 12:33:29,085 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:33:29,086 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:33:29,086 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:33:29,086 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:33:29,086 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 12:33:29,086 - app - INFO -   - Log Level: info
+2025-07-23 12:33:29,086 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:33:29,086 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:33:29,086 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:33:29,087 - app - INFO -       - Type: ollama
+2025-07-23 12:33:29,087 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:33:29,087 - app - INFO -       - Default Model: llama3
+2025-07-23 12:33:29,087 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:33:29,087 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:33:29,087 - app - INFO -       - Type: openai
+2025-07-23 12:33:29,087 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:33:29,087 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:33:29,087 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:33:29,087 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:33:29,087 - app - INFO -       - Type: openai
+2025-07-23 12:33:29,087 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:33:29,088 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:33:29,088 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:33:29,088 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:33:29,088 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:33:29,088 - app - INFO - ==================================================
+2025-07-23 12:33:29,095 - werkzeug - WARNING -  * Debugger is active!
+2025-07-23 12:33:29,095 - werkzeug - INFO -  * Debugger PIN: 156-389-163
+2025-07-23 12:36:53,908 - app - INFO - ==================================================
+2025-07-23 12:36:53,908 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:36:53,908 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:36:53,909 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:36:53,909 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:36:53,909 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 12:36:53,909 - app - INFO -   - Log Level: info
+2025-07-23 12:36:53,909 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:36:53,909 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:36:53,909 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:36:53,909 - app - INFO -       - Type: ollama
+2025-07-23 12:36:53,909 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:36:53,909 - app - INFO -       - Default Model: llama3
+2025-07-23 12:36:53,910 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:36:53,910 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:36:53,910 - app - INFO -       - Type: openai
+2025-07-23 12:36:53,910 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:36:53,910 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:36:53,910 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:36:53,910 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:36:53,910 - app - INFO -       - Type: openai
+2025-07-23 12:36:53,910 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:36:53,910 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:36:53,910 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:36:53,910 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:36:53,911 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:36:53,911 - app - INFO - ==================================================
+2025-07-23 12:36:55,482 - app - INFO - ==================================================
+2025-07-23 12:36:55,483 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:36:55,483 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:36:55,483 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:36:55,483 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:36:55,483 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 12:36:55,484 - app - INFO -   - Log Level: info
+2025-07-23 12:36:55,484 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:36:55,484 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:36:55,484 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:36:55,484 - app - INFO -       - Type: ollama
+2025-07-23 12:36:55,484 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:36:55,484 - app - INFO -       - Default Model: llama3
+2025-07-23 12:36:55,484 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:36:55,484 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:36:55,484 - app - INFO -       - Type: openai
+2025-07-23 12:36:55,485 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:36:55,485 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:36:55,485 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:36:55,485 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:36:55,485 - app - INFO -       - Type: openai
+2025-07-23 12:36:55,485 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:36:55,485 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:36:55,485 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:36:55,485 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:36:55,485 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:36:55,485 - app - INFO - ==================================================
+2025-07-23 12:36:55,497 - werkzeug - INFO -  * Restarting with stat
+2025-07-23 12:36:57,591 - app - INFO - ==================================================
+2025-07-23 12:36:57,591 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:36:57,592 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:36:57,592 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:36:57,592 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:36:57,592 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 12:36:57,592 - app - INFO -   - Log Level: info
+2025-07-23 12:36:57,592 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:36:57,592 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:36:57,592 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:36:57,592 - app - INFO -       - Type: ollama
+2025-07-23 12:36:57,593 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:36:57,593 - app - INFO -       - Default Model: llama3
+2025-07-23 12:36:57,593 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:36:57,593 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:36:57,593 - app - INFO -       - Type: openai
+2025-07-23 12:36:57,593 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:36:57,593 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:36:57,593 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:36:57,593 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:36:57,593 - app - INFO -       - Type: openai
+2025-07-23 12:36:57,593 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:36:57,594 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:36:57,594 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:36:57,594 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:36:57,594 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:36:57,594 - app - INFO - ==================================================
+2025-07-23 12:36:59,402 - werkzeug - WARNING -  * Debugger is active!
+2025-07-23 12:36:59,402 - werkzeug - INFO -  * Debugger PIN: 937-309-239
+2025-07-23 12:39:23,465 - werkzeug - INFO -  * Detected change in '/app/tests/test_config.py', reloading
+2025-07-23 12:42:01,887 - werkzeug - INFO -  * Restarting with stat
+2025-07-23 12:42:07,707 - app - INFO - ==================================================
+2025-07-23 12:42:07,708 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:42:07,708 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:42:07,708 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:42:07,708 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:42:56,175 - app - INFO - ==================================================
+2025-07-23 12:42:56,175 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:42:56,175 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:42:56,175 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:42:56,175 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:42:56,175 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 12:42:56,175 - app - INFO -   - Log Level: info
+2025-07-23 12:42:56,175 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:42:56,175 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:42:56,176 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:42:56,176 - app - INFO -       - Type: ollama
+2025-07-23 12:42:56,176 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:42:56,176 - app - INFO -       - Default Model: llama3
+2025-07-23 12:42:56,176 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:42:56,176 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:42:56,176 - app - INFO -       - Type: openai
+2025-07-23 12:42:56,176 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:42:56,176 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:42:56,176 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:42:56,176 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:42:56,177 - app - INFO -       - Type: openai
+2025-07-23 12:42:56,177 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:42:56,177 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:42:56,177 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:42:56,177 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:42:56,177 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:42:56,177 - app - INFO - ==================================================
+2025-07-23 12:42:56,419 - app - INFO - ==================================================
+2025-07-23 12:42:56,419 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:42:56,419 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:42:56,419 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:42:56,420 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:42:56,420 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 12:42:56,420 - app - INFO -   - Log Level: info
+2025-07-23 12:42:56,420 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:42:56,420 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:42:56,420 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:42:56,420 - app - INFO -       - Type: ollama
+2025-07-23 12:42:56,420 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:42:56,421 - app - INFO -       - Default Model: llama3
+2025-07-23 12:42:56,421 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:42:56,421 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:42:56,421 - app - INFO -       - Type: openai
+2025-07-23 12:42:56,421 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:42:56,421 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:42:56,421 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:42:56,421 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:42:56,421 - app - INFO -       - Type: openai
+2025-07-23 12:42:56,421 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:42:56,421 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:42:56,421 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:42:56,422 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:42:56,422 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:42:56,422 - app - INFO - ==================================================
+2025-07-23 12:42:57,523 - werkzeug - INFO -  * Restarting with stat
+2025-07-23 12:42:59,441 - app - INFO - ==================================================
+2025-07-23 12:42:59,441 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:42:59,441 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:42:59,441 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:42:59,441 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:42:59,441 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 12:42:59,442 - app - INFO -   - Log Level: info
+2025-07-23 12:42:59,442 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:42:59,442 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:42:59,442 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:42:59,442 - app - INFO -       - Type: ollama
+2025-07-23 12:42:59,442 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:42:59,443 - app - INFO -       - Default Model: llama3
+2025-07-23 12:42:59,443 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:42:59,443 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:42:59,443 - app - INFO -       - Type: openai
+2025-07-23 12:42:59,443 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:42:59,443 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:42:59,443 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:42:59,444 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:42:59,444 - app - INFO -       - Type: openai
+2025-07-23 12:42:59,444 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:42:59,444 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:42:59,444 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:42:59,444 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:42:59,444 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:42:59,444 - app - INFO - ==================================================
+2025-07-23 12:43:01,331 - werkzeug - WARNING -  * Debugger is active!
+2025-07-23 12:43:01,332 - werkzeug - INFO -  * Debugger PIN: 493-142-948
+2025-07-23 12:46:47,906 - werkzeug - INFO -  * Detected change in '/app/tests/test_config.py', reloading
+2025-07-23 12:46:48,095 - werkzeug - INFO -  * Restarting with stat
+2025-07-23 12:46:50,008 - app - INFO - ==================================================
+2025-07-23 12:46:50,008 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:46:50,008 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:46:50,008 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:46:50,008 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:46:50,008 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 12:46:50,008 - app - INFO -   - Log Level: info
+2025-07-23 12:46:50,009 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:46:50,009 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:46:50,009 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:46:50,009 - app - INFO -       - Type: ollama
+2025-07-23 12:46:50,009 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:46:50,009 - app - INFO -       - Default Model: llama3
+2025-07-23 12:46:50,009 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:46:50,009 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:46:50,010 - app - INFO -       - Type: openai
+2025-07-23 12:46:50,010 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:46:50,010 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:46:50,010 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:46:50,010 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:46:50,010 - app - INFO -       - Type: openai
+2025-07-23 12:46:50,010 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:46:50,010 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:46:50,011 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:46:50,011 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:46:50,011 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:46:50,011 - app - INFO - ==================================================
+2025-07-23 12:46:51,851 - werkzeug - WARNING -  * Debugger is active!
+2025-07-23 12:46:51,851 - werkzeug - INFO -  * Debugger PIN: 493-142-948
+2025-07-23 12:52:40,664 - app - INFO - ==================================================
+2025-07-23 12:52:40,664 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:52:40,664 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:52:40,664 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:52:40,664 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:52:40,664 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 12:52:40,664 - app - INFO -   - Log Level: info
+2025-07-23 12:52:40,664 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:52:40,664 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:52:40,664 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:52:40,665 - app - INFO -       - Type: ollama
+2025-07-23 12:52:40,665 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:52:40,665 - app - INFO -       - Default Model: llama3
+2025-07-23 12:52:40,665 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:52:40,665 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:52:40,665 - app - INFO -       - Type: openai
+2025-07-23 12:52:40,665 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:52:40,665 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:52:40,665 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:52:40,665 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:52:40,665 - app - INFO -       - Type: openai
+2025-07-23 12:52:40,665 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:52:40,666 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:52:40,666 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:52:40,666 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:52:40,666 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:52:40,666 - app - INFO - ==================================================
+2025-07-23 12:52:42,578 - app - INFO - ==================================================
+2025-07-23 12:52:42,578 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:52:42,578 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:52:42,578 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:52:42,579 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:52:42,579 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 12:52:42,579 - app - INFO -   - Log Level: info
+2025-07-23 12:52:42,579 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:52:42,579 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:52:42,579 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:52:42,579 - app - INFO -       - Type: ollama
+2025-07-23 12:52:42,579 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:52:42,580 - app - INFO -       - Default Model: llama3
+2025-07-23 12:52:42,580 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:52:42,580 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:52:42,580 - app - INFO -       - Type: openai
+2025-07-23 12:52:42,580 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:52:42,580 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:52:42,580 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:52:42,580 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:52:42,580 - app - INFO -       - Type: openai
+2025-07-23 12:52:42,580 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:52:42,581 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:52:42,581 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:52:42,581 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:52:42,581 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:52:42,581 - app - INFO - ==================================================
+2025-07-23 12:52:42,595 - werkzeug - INFO -  * Restarting with stat
+2025-07-23 12:52:44,534 - app - INFO - ==================================================
+2025-07-23 12:52:44,534 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 12:52:44,534 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 12:52:44,534 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 12:52:44,534 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 12:52:44,535 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 12:52:44,535 - app - INFO -   - Log Level: info
+2025-07-23 12:52:44,535 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 12:52:44,535 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 12:52:44,535 - app - INFO -     - Backend: ollama_local
+2025-07-23 12:52:44,535 - app - INFO -       - Type: ollama
+2025-07-23 12:52:44,535 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 12:52:44,535 - app - INFO -       - Default Model: llama3
+2025-07-23 12:52:44,536 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:52:44,536 - app - INFO -     - Backend: openai_cloud
+2025-07-23 12:52:44,536 - app - INFO -       - Type: openai
+2025-07-23 12:52:44,536 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 12:52:44,536 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 12:52:44,536 - app - INFO -       - Auto Load Models: False
+2025-07-23 12:52:44,536 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 12:52:44,536 - app - INFO -       - Type: openai
+2025-07-23 12:52:44,536 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 12:52:44,536 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 12:52:44,537 - app - INFO -       - Auto Load Models: True
+2025-07-23 12:52:44,537 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 12:52:44,537 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 12:52:44,537 - app - INFO - ==================================================
+2025-07-23 12:52:46,327 - werkzeug - WARNING -  * Debugger is active!
+2025-07-23 12:52:46,328 - werkzeug - INFO -  * Debugger PIN: 801-533-774
+2025-07-23 13:01:09,735 - app - INFO - ==================================================
+2025-07-23 13:01:09,735 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 13:01:09,735 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 13:01:09,735 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 13:01:09,735 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 13:01:09,736 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 13:01:09,736 - app - INFO -   - Log Level: info
+2025-07-23 13:01:09,736 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 13:01:09,736 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 13:01:09,736 - app - INFO -     - Backend: ollama_local
+2025-07-23 13:01:09,736 - app - INFO -       - Type: ollama
+2025-07-23 13:01:09,736 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 13:01:09,736 - app - INFO -       - Default Model: llama3
+2025-07-23 13:01:09,736 - app - INFO -       - Auto Load Models: True
+2025-07-23 13:01:09,737 - app - INFO -     - Backend: openai_cloud
+2025-07-23 13:01:09,737 - app - INFO -       - Type: openai
+2025-07-23 13:01:09,737 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 13:01:09,737 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 13:01:09,737 - app - INFO -       - Auto Load Models: False
+2025-07-23 13:01:09,737 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 13:01:09,737 - app - INFO -       - Type: openai
+2025-07-23 13:01:09,737 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 13:01:09,737 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 13:01:09,737 - app - INFO -       - Auto Load Models: True
+2025-07-23 13:01:09,737 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 13:01:09,737 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 13:01:09,738 - app - INFO - ==================================================
+2025-07-23 13:01:09,976 - app - INFO - ==================================================
+2025-07-23 13:01:09,976 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 13:01:09,977 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 13:01:09,977 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 13:01:09,977 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 13:01:09,977 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 13:01:09,977 - app - INFO -   - Log Level: info
+2025-07-23 13:01:09,977 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 13:01:09,977 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 13:01:09,977 - app - INFO -     - Backend: ollama_local
+2025-07-23 13:01:09,978 - app - INFO -       - Type: ollama
+2025-07-23 13:01:09,978 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 13:01:09,978 - app - INFO -       - Default Model: llama3
+2025-07-23 13:01:09,978 - app - INFO -       - Auto Load Models: True
+2025-07-23 13:01:09,978 - app - INFO -     - Backend: openai_cloud
+2025-07-23 13:01:09,978 - app - INFO -       - Type: openai
+2025-07-23 13:01:09,978 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 13:01:09,978 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 13:01:09,978 - app - INFO -       - Auto Load Models: False
+2025-07-23 13:01:09,978 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 13:01:09,978 - app - INFO -       - Type: openai
+2025-07-23 13:01:09,978 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 13:01:09,979 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 13:01:09,979 - app - INFO -       - Auto Load Models: True
+2025-07-23 13:01:09,979 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 13:01:09,979 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 13:01:09,979 - app - INFO - ==================================================
+2025-07-23 13:01:11,231 - werkzeug - INFO -  * Restarting with stat
+2025-07-23 13:01:13,177 - app - INFO - ==================================================
+2025-07-23 13:01:13,177 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 13:01:13,177 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 13:01:13,178 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 13:01:13,178 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 13:01:13,178 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 13:01:13,178 - app - INFO -   - Log Level: info
+2025-07-23 13:01:13,178 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 13:01:13,178 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 13:01:13,178 - app - INFO -     - Backend: ollama_local
+2025-07-23 13:01:13,178 - app - INFO -       - Type: ollama
+2025-07-23 13:01:13,179 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 13:01:13,179 - app - INFO -       - Default Model: llama3
+2025-07-23 13:01:13,179 - app - INFO -       - Auto Load Models: True
+2025-07-23 13:01:13,179 - app - INFO -     - Backend: openai_cloud
+2025-07-23 13:01:13,179 - app - INFO -       - Type: openai
+2025-07-23 13:01:13,179 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 13:01:13,179 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 13:01:13,179 - app - INFO -       - Auto Load Models: False
+2025-07-23 13:01:13,180 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 13:01:13,180 - app - INFO -       - Type: openai
+2025-07-23 13:01:13,180 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 13:01:13,180 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 13:01:13,180 - app - INFO -       - Auto Load Models: True
+2025-07-23 13:01:13,180 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 13:01:13,180 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 13:01:13,180 - app - INFO - ==================================================
+2025-07-23 13:01:15,035 - werkzeug - WARNING -  * Debugger is active!
+2025-07-23 13:01:15,036 - werkzeug - INFO -  * Debugger PIN: 120-975-497
+2025-07-23 22:56:31,670 - app - INFO - ==================================================
+2025-07-23 22:56:31,671 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 22:56:31,671 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 22:56:31,672 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 22:56:31,675 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 22:56:31,677 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 22:56:31,678 - app - INFO -   - Log Level: info
+2025-07-23 22:56:31,678 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 22:56:31,680 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 22:56:31,683 - app - INFO -     - Backend: ollama_local
+2025-07-23 22:56:31,685 - app - INFO -       - Type: ollama
+2025-07-23 22:56:31,686 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 22:56:31,688 - app - INFO -       - Default Model: llama3
+2025-07-23 22:56:31,693 - app - INFO -       - Auto Load Models: True
+2025-07-23 22:56:31,695 - app - INFO -     - Backend: openai_cloud
+2025-07-23 22:56:31,697 - app - INFO -       - Type: openai
+2025-07-23 22:56:31,700 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 22:56:31,701 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 22:56:31,701 - app - INFO -       - Auto Load Models: False
+2025-07-23 22:56:31,702 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 22:56:31,704 - app - INFO -       - Type: openai
+2025-07-23 22:56:31,709 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 22:56:31,715 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 22:56:31,720 - app - INFO -       - Auto Load Models: True
+2025-07-23 22:56:31,720 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 22:56:31,721 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 22:56:31,722 - app - INFO - ==================================================
+2025-07-23 22:56:36,148 - werkzeug - INFO -  * Restarting with stat
+2025-07-23 22:56:38,471 - app - INFO - ==================================================
+2025-07-23 22:56:38,472 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 22:56:38,473 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 22:56:38,474 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 22:56:38,475 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 22:56:38,476 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 22:56:38,477 - app - INFO -   - Log Level: info
+2025-07-23 22:56:38,477 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 22:56:38,478 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 22:56:38,479 - app - INFO -     - Backend: ollama_local
+2025-07-23 22:56:38,479 - app - INFO -       - Type: ollama
+2025-07-23 22:56:38,482 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 22:56:38,483 - app - INFO -       - Default Model: llama3
+2025-07-23 22:56:38,484 - app - INFO -       - Auto Load Models: True
+2025-07-23 22:56:38,485 - app - INFO -     - Backend: openai_cloud
+2025-07-23 22:56:38,487 - app - INFO -       - Type: openai
+2025-07-23 22:56:38,487 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 22:56:38,488 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 22:56:38,488 - app - INFO -       - Auto Load Models: False
+2025-07-23 22:56:38,492 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 22:56:38,493 - app - INFO -       - Type: openai
+2025-07-23 22:56:38,494 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 22:56:38,494 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 22:56:38,495 - app - INFO -       - Auto Load Models: True
+2025-07-23 22:56:38,496 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 22:56:38,497 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 22:56:38,498 - app - INFO - ==================================================
+2025-07-23 22:56:39,258 - app - INFO - ==================================================
+2025-07-23 22:56:39,258 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 22:56:39,259 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 22:56:39,259 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 22:56:39,259 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 22:56:39,259 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 22:56:39,259 - app - INFO -   - Log Level: info
+2025-07-23 22:56:39,259 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 22:56:39,259 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 22:56:39,260 - app - INFO -     - Backend: ollama_local
+2025-07-23 22:56:39,260 - app - INFO -       - Type: ollama
+2025-07-23 22:56:39,260 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 22:56:39,260 - app - INFO -       - Default Model: llama3
+2025-07-23 22:56:39,260 - app - INFO -       - Auto Load Models: True
+2025-07-23 22:56:39,260 - app - INFO -     - Backend: openai_cloud
+2025-07-23 22:56:39,260 - app - INFO -       - Type: openai
+2025-07-23 22:56:39,261 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 22:56:39,261 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 22:56:39,261 - app - INFO -       - Auto Load Models: False
+2025-07-23 22:56:39,261 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 22:56:39,261 - app - INFO -       - Type: openai
+2025-07-23 22:56:39,262 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 22:56:39,262 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 22:56:39,262 - app - INFO -       - Auto Load Models: True
+2025-07-23 22:56:39,262 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 22:56:39,262 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 22:56:39,263 - app - INFO - ==================================================
+2025-07-23 22:56:40,905 - werkzeug - WARNING -  * Debugger is active!
+2025-07-23 22:56:40,905 - werkzeug - INFO -  * Debugger PIN: 235-709-796
+2025-07-23 22:58:09,165 - app - INFO - ==================================================
+2025-07-23 22:58:09,166 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 22:58:09,167 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 22:58:09,167 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 22:58:09,168 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 22:58:09,168 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 22:58:09,168 - app - INFO -   - Log Level: info
+2025-07-23 22:58:09,169 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 22:58:09,169 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 22:58:09,170 - app - INFO -     - Backend: ollama_local
+2025-07-23 22:58:09,170 - app - INFO -       - Type: ollama
+2025-07-23 22:58:09,171 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 22:58:09,171 - app - INFO -       - Default Model: llama3
+2025-07-23 22:58:09,171 - app - INFO -       - Auto Load Models: True
+2025-07-23 22:58:09,172 - app - INFO -     - Backend: openai_cloud
+2025-07-23 22:58:09,172 - app - INFO -       - Type: openai
+2025-07-23 22:58:09,172 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 22:58:09,173 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 22:58:09,173 - app - INFO -       - Auto Load Models: False
+2025-07-23 22:58:09,174 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 22:58:09,174 - app - INFO -       - Type: openai
+2025-07-23 22:58:09,175 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 22:58:09,175 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 22:58:09,176 - app - INFO -       - Auto Load Models: True
+2025-07-23 22:58:09,176 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 22:58:09,176 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 22:58:09,176 - app - INFO - ==================================================
+2025-07-23 22:58:15,290 - app - INFO - ==================================================
+2025-07-23 22:58:15,290 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 22:58:15,290 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 22:58:15,291 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 22:58:15,292 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 22:58:15,292 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 22:58:15,293 - app - INFO -   - Log Level: info
+2025-07-23 22:58:15,293 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 22:58:15,293 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 22:58:15,294 - app - INFO -     - Backend: ollama_local
+2025-07-23 22:58:15,294 - app - INFO -       - Type: ollama
+2025-07-23 22:58:15,294 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 22:58:15,295 - app - INFO -       - Default Model: llama3
+2025-07-23 22:58:15,295 - app - INFO -       - Auto Load Models: True
+2025-07-23 22:58:15,295 - app - INFO -     - Backend: openai_cloud
+2025-07-23 22:58:15,296 - app - INFO -       - Type: openai
+2025-07-23 22:58:15,297 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 22:58:15,297 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 22:58:15,297 - app - INFO -       - Auto Load Models: False
+2025-07-23 22:58:15,298 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 22:58:15,298 - app - INFO -       - Type: openai
+2025-07-23 22:58:15,299 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 22:58:15,299 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 22:58:15,300 - app - INFO -       - Auto Load Models: True
+2025-07-23 22:58:15,300 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 22:58:15,300 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 22:58:15,301 - app - INFO - ==================================================
+2025-07-23 23:08:48,542 - werkzeug - INFO -  * Restarting with stat
+=====================
+2025-07-23 23:01:22,390 - app - INFO - Configuration finale de l'AI Gateway chargée :
+2025-07-23 23:01:22,390 - app - INFO -   - Flask Secret Key: Définie (source: fichier secret (flask_secret_key))
+2025-07-23 23:01:22,390 - app - INFO -   - Celery Broker URL: redis://redis:6379/0
+2025-07-23 23:01:22,390 - app - INFO -   - Celery Result Backend: redis://redis:6379/0
+2025-07-23 23:01:22,390 - app - INFO -   - SearXNG Base URL: http://searxng:5001
+2025-07-23 23:01:22,391 - app - INFO -   - Log Level: info
+2025-07-23 23:01:22,391 - app - INFO -   - Log Rotation Days: 7
+2025-07-23 23:01:22,391 - app - INFO -   - LLM Backends: 3 backend(s) configuré(s)
+2025-07-23 23:01:22,391 - app - INFO -     - Backend: ollama_local
+2025-07-23 23:01:22,391 - app - INFO -       - Type: ollama
+2025-07-23 23:01:22,391 - app - INFO -       - URL: http://localhost:11434
+2025-07-23 23:01:22,391 - app - INFO -       - Default Model: llama3
+2025-07-23 23:01:22,392 - app - INFO -       - Auto Load Models: True
+2025-07-23 23:01:22,392 - app - INFO -     - Backend: openai_cloud
+2025-07-23 23:01:22,392 - app - INFO -       - Type: openai
+2025-07-23 23:01:22,392 - app - INFO -       - URL: https://api.openai.com/v1
+2025-07-23 23:01:22,392 - app - INFO -       - Default Model: gpt-4-turbo
+2025-07-23 23:01:22,392 - app - INFO -       - Auto Load Models: False
+2025-07-23 23:01:22,392 - app - INFO -     - Backend: lm_studio_local
+2025-07-23 23:01:22,392 - app - INFO -       - Type: openai
+2025-07-23 23:01:22,392 - app - INFO -       - URL: http://localhost:1234/v1
+2025-07-23 23:01:22,393 - app - INFO -       - Default Model: lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF
+2025-07-23 23:01:22,393 - app - INFO -       - Auto Load Models: True
+2025-07-23 23:01:22,393 - app - INFO -   - Primary Backend: ollama_local
+2025-07-23 23:01:22,393 - app - INFO -   - High Availability Strategy: failover
+2025-07-23 23:01:22,393 - app - INFO - ==================================================

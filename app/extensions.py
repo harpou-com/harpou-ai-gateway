@@ -4,4 +4,7 @@ from flask_socketio import SocketIO
 # On initialise Celery ici, mais sans configuration.
 # La configuration sera chargée depuis l'application Flask plus tard.
 celery = Celery(__name__)
-socketio = SocketIO(async_mode='eventlet', message_queue='redis://redis:6379/0')
+# On initialise SocketIO ici, mais sans configuration.
+# La configuration (async_mode, message_queue, etc.) sera appliquée
+# via socketio.init_app() dans la factory de l'application.
+socketio = SocketIO(async_mode='eventlet')

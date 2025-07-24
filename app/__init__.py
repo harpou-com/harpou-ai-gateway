@@ -1,12 +1,63 @@
 
 import os
+import json
+import logging
+from logging.handlers import TimedRotatingFileHandler
 from flask import Flask
 from dotenv import load_dotenv
 from .extensions import celery, socketio
 from flask_cors import CORS
 
-# Charger les variables d'environnement dès le début
-load_dotenv()
+# Charger les variables d'environnement, sauf en mode test pour éviter les I/O bloquantes sur le filesystem.
+if os.environ.get("APP_ENV") != "testing":
+    load_dotenv()
+
+def configure_logging(app):
+    """
+    Configure la journalisation avec rotation de fichiers pour l'application.
+    Cette fonction est conçue pour être robuste contre les erreurs de configuration.
+    """
+    # Le chemin racine du projet est un niveau au-dessus du répertoire de l'application
+    project_root = os.path.abspath(os.path.join(app.root_path, os.pardir))
+    log_dir = os.path.join(project_root, 'logs')
+    
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+    except OSError as e:
+        # Si la création du dossier échoue, on logue sur la console et on arrête.
+        # Le logger par défaut de Flask (stderr) prendra le relais.
+        print(f"AVERTISSEMENT: Impossible de créer le dossier de logs {log_dir}. Erreur: {e}")
+        return
+
+    # Récupérer les paramètres de journalisation de manière sécurisée
+    log_level_str = app.config.get('LOG_LEVEL', 'INFO').upper()
+    log_level = getattr(logging, log_level_str, logging.INFO)
+    
+    default_rotation_days = 7
+    invalid_rotation_value = None
+    try:
+        rotation_days = int(app.config.get('LOG_ROTATION_DAYS', default_rotation_days))
+    except (ValueError, TypeError):
+        invalid_rotation_value = app.config.get('LOG_ROTATION_DAYS')
+        rotation_days = default_rotation_days
+
+    # Configurer le handler pour la rotation des fichiers
+    log_file = os.path.join(log_dir, 'app.log')
+    file_handler = TimedRotatingFileHandler(log_file, when='midnight', backupCount=rotation_days, encoding='utf-8')
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+
+    # Appliquer cette configuration au logger racine
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+    root_logger.addHandler(file_handler)
+    root_logger.setLevel(log_level)
+
+    if invalid_rotation_value is not None:
+        root_logger.warning(
+            f"Valeur invalide '{invalid_rotation_value}' pour LOG_ROTATION_DAYS. "
+            f"Utilisation de la valeur par défaut : {default_rotation_days} jours."
+        )
 
 def create_app(config_object=None, init_socketio=True):
     """
@@ -18,19 +69,129 @@ def create_app(config_object=None, init_socketio=True):
     # Active CORS pour toutes les routes HTTP (fetch cross-origin)
     CORS(app, origins="*")
 
-    # Configuration depuis les variables d'environnement
-    app.config.from_mapping(
-        SECRET_KEY=os.environ.get('FLASK_SECRET_KEY'),
-        # Configuration Celery avec les clés en minuscules (recommandé pour Celery 5+)
-        broker_url=os.environ.get('CELERY_BROKER_URL'),
-        result_backend=os.environ.get('CELERY_RESULT_BACKEND'),
-    )
+    # --- Logique de chargement de la configuration ---
+    # Priorité : 1. Secret Docker > 2. Variables d'environnement > 3. config.json
+
+    # 1. Charger la configuration depuis config.json (racine du projet)
+    config = {}
+    # Le chemin racine du projet est un niveau au-dessus du répertoire de l'application (app.root_path)
+    project_root = os.path.abspath(os.path.join(app.root_path, os.pardir))
+    # Le fichier de configuration est maintenant dans le dossier /config
+    config_path = os.path.join(project_root, 'config', 'config.json')
+
+    app.logger.info(f"Recherche du fichier de configuration à l'emplacement : {config_path}")
+    if os.path.exists(config_path):
+        with open(config_path) as config_file:
+            config = json.load(config_file)
+        app.logger.info("Fichier config.json chargé avec succès.")
+    else:
+        app.logger.warning("Fichier config.json non trouvé. Utilisation des valeurs par défaut et des variables d'environnement.")
+
+    # 2. Logique de surcharge par variables d'environnement
+    app.logger.info("Vérification des variables d'environnement pour surcharger la configuration...")
+    
+    # Scénario 1: Surcharge simplifiée pour un backend unique
+    is_single_backend_mode = False
+    if (backend_type := os.environ.get('LLM_BACKEND_TYPE')) and \
+       (base_url := os.environ.get('LLM_BASE_URL')) and \
+       (default_model := os.environ.get('LLM_DEFAULT_MODEL')):
+        
+        is_single_backend_mode = True
+        app.logger.info("Mode de configuration 'backend unique' détecté via les variables d'environnement.")
+        app.logger.info(" -> Surcharge de 'llm_backends', 'primary_backend_name' et 'high_availability_strategy'.")
+        
+        single_backend = {
+            "name": "default",
+            "type": backend_type,
+            "base_url": base_url,
+            "default_model": default_model,
+            "api_key": os.environ.get('LLM_API_KEY'),
+            "llm_auto_load": os.environ.get('LLM_AUTO_LOAD', 'false').lower() in ('true', '1', 't')
+        }
+        config['llm_backends'] = [single_backend]
+        config['primary_backend_name'] = "default"
+        config['high_availability_strategy'] = "none"
+
+    # Scénario 2: Surcharge individuelle des autres paramètres
+    # Mappage des variables d'environnement aux clés de configuration
+    env_to_config_map = {
+        'FLASK_SECRET_KEY': 'FLASK_SECRET_KEY',
+        'CELERY_BROKER_URL': 'CELERY_BROKER_URL',
+        'CELERY_RESULT_BACKEND': 'CELERY_RESULT_BACKEND',
+        'SEARXNG_BASE_URL': 'SEARXNG_BASE_URL',
+        'LOG_LEVEL': 'LOG_LEVEL',
+        'LOG_ROTATION_DAYS': 'LOG_ROTATION_DAYS',
+        'PRIMARY_BACKEND_NAME': 'primary_backend_name',
+        'HIGH_AVAILABILITY_STRATEGY': 'high_availability_strategy',
+    }
+
+    for env_key, config_key in env_to_config_map.items():
+        # Ne pas surcharger les paramètres HA si le mode backend unique est actif
+        if is_single_backend_mode and config_key in ['primary_backend_name', 'high_availability_strategy']:
+            continue
+
+        if (env_value := os.environ.get(env_key)) is not None:
+            if config.get(config_key) != env_value:
+                app.logger.info(f"  -> Surcharge de '{config_key}' avec la variable d'environnement '{env_key}'.")
+            config[config_key] = env_value
+    
+    # 3. Gérer la clé secrète avec la plus haute priorité (Docker Secrets)
+    secret_key_source = "non définie"
+    secret_key_value = config.get('FLASK_SECRET_KEY') # Valeur de base (json/env)
+
+    if secret_path := os.environ.get('FLASK_SECRET_KEY_FILE'):
+        app.logger.info(f"Tentative de chargement de la clé secrète depuis le fichier : {secret_path}")
+        if os.path.exists(secret_path):
+            with open(secret_path) as secret_file:
+                secret_key_value = secret_file.read().strip()
+            secret_key_source = f"fichier secret ({os.path.basename(secret_path)})"
+        else:
+            app.logger.warning(f"Le fichier secret '{secret_path}' n'a pas été trouvé.")
+    elif secret_key_value:
+        secret_key_source = "config.json ou variable d'environnement"
+
+    # 4. Appliquer la configuration finale
+    config['SECRET_KEY'] = secret_key_value # Clé Flask
+    
+    # Utiliser update() pour charger toutes les clés, y compris celles en minuscules.
+    app.config.update(config)
+
+    # Mapper les clés de configuration vers les clés attendues par Celery/SocketIO
+    if broker_url := app.config.get('CELERY_BROKER_URL'):
+        app.config['broker_url'] = broker_url
+        app.config['message_queue'] = broker_url
+    if result_backend := app.config.get('CELERY_RESULT_BACKEND'):
+        app.config['result_backend'] = result_backend
+
+    # --- Configuration de la journalisation (AVANT de logger la config) ---
+    configure_logging(app)
+
+    # --- Journalisation de la configuration finale ---
+    app.logger.info("="*50)
+    app.logger.info("Configuration finale de l'AI Gateway chargée :")
+    app.logger.info(f"  - Flask Secret Key: {'Définie' if app.config.get('SECRET_KEY') else 'Non définie'} (source: {secret_key_source})")
+    app.logger.info(f"  - Celery Broker URL: {app.config.get('CELERY_BROKER_URL')}")
+    app.logger.info(f"  - Celery Result Backend: {app.config.get('CELERY_RESULT_BACKEND')}")
+    app.logger.info(f"  - SearXNG Base URL: {app.config.get('SEARXNG_BASE_URL')}")
+    app.logger.info(f"  - Log Level: {app.config.get('LOG_LEVEL')}")
+    app.logger.info(f"  - Log Rotation Days: {app.config.get('LOG_ROTATION_DAYS')}")
+    app.logger.info(f"  - LLM Backends: {len(app.config.get('llm_backends', []))} backend(s) configuré(s)")
+    for backend in app.config.get('llm_backends', []):
+        app.logger.info(f"    - Backend: {backend.get('name')}")
+        app.logger.info(f"      - Type: {backend.get('type')}")
+        app.logger.info(f"      - URL: {backend.get('base_url')}")
+        app.logger.info(f"      - Default Model: {backend.get('default_model')}")
+        app.logger.info(f"      - Auto Load Models: {backend.get('llm_auto_load')}")
+    app.logger.info(f"  - Primary Backend: {app.config.get('primary_backend_name')}")
+    app.logger.info(f"  - High Availability Strategy: {app.config.get('high_availability_strategy')}")
+    app.logger.info("="*50)
 
     # Initialiser Celery
     init_celery(app)
 
     # Initialiser SocketIO (uniquement pour le serveur web)
     if init_socketio:
+        # La configuration (message_queue, etc.) est lue depuis app.config
         socketio.init_app(
             app, 
             cors_allowed_origins="*" # Autorise toutes les origines
@@ -48,6 +209,7 @@ def create_app(config_object=None, init_socketio=True):
 
 def init_celery(app: Flask):
     """Initialise et configure l'instance Celery avec le contexte Flask."""
+    # Celery utilise directement les clés de app.config comme 'broker_url'
     celery.conf.update(app.config)
 
     class ContextTask(celery.Task):

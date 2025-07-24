@@ -1,0 +1,36 @@
+{
+    "llm_backends": [
+        {
+            "name": "ollama_local",
+            "type": "ollama",
+            "base_url": "http://localhost:11434",
+            "default_model": "llama3",
+            "api_key": null,
+            "llm_auto_load": true
+        },
+        {
+            "name": "openai_cloud",
+            "type": "openai",
+            "base_url": "https://api.openai.com/v1",
+            "default_model": "gpt-4-turbo",
+            "api_key": "YOUR_OPENAI_API_KEY_HERE",
+            "llm_auto_load": false
+        },
+        {
+            "name": "lm_studio_local",
+            "type": "openai",
+            "base_url": "http://localhost:1234/v1",
+            "default_model": "lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF",
+            "api_key": null,
+            "llm_auto_load": true
+        }
+    ],
+    "primary_backend_name": "ollama_local",
+    "high_availability_strategy": "failover",
+    "SEARXNG_BASE_URL": "http://localhost:8080",
+    "FLASK_SECRET_KEY": "a_very_secret_key_for_local_dev_only",
+    "CELERY_BROKER_URL": "redis://localhost:6379/0",
+    "CELERY_RESULT_BACKEND": "redis://localhost:6379/0",
+    "LOG_LEVEL": "info",
+    "LOG_ROTATION_DAYS": 7
+}
