@@ -6,6 +6,8 @@ import uuid
 from flask import Blueprint, jsonify, request, current_app, Response, stream_with_context
 from .tasks import orchestrator_task
 
+from .llm_connector import get_chat_completion
+
 bp = Blueprint('main', __name__)
 
 @bp.route('/')
