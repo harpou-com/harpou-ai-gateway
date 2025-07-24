@@ -6,11 +6,13 @@ la logique de décision de l'IA et les outils associés.
 # 1. Imports
 # Standard library
 import json
+import uuid
+import time
 
 # Third-party libraries
 import requests
 from celery import chain
-from flask import current_app
+from flask import Response, current_app, jsonify, request
 from celery.utils.log import get_task_logger
 
 # Local application imports
@@ -77,9 +79,9 @@ Répondez avec un objet JSON structuré comme suit :
 def orchestrator_task(self, user_question, sid):
     """
     Tâche Celery qui orchestre la décision de l'IA et lance le flux de travail approprié.
+    Le résultat de cette tâche est la réponse finale, la rendant compatible avec le polling HTTP.
     """
     logger.info(f"Démarrage pour SID {sid} avec la question: '{user_question}'")
-    # Utilise la nouvelle fonction qui appelle le vrai LLM
     decision = get_llm_decision(user_question)
     logger.info(f"Décision IA pour SID {sid} : {decision}")
 
@@ -88,29 +90,34 @@ def orchestrator_task(self, user_question, sid):
         if tool_name == "search_web":
             query = decision.get("parameters", {}).get("query")
             if query:
-                logger.info(f"Création d'une chaîne de tâches pour SID {sid}: search_web -> synthesis")
-                # Crée une chaîne: le résultat de search_web_task est passé à synthesis_task
+                logger.info(f"Création et exécution d'une chaîne de tâches pour SID {sid}: search_web -> synthesis")
                 workflow = chain(
                     search_web_task.s(query=query),
                     synthesis_task.s(original_question=user_question, sid=sid)
                 )
-                workflow.delay()
+                # Exécute la chaîne et attend le résultat. Cela bloque ce worker, ce qui est
+                # le comportement attendu pour que cette tâche contienne le résultat final.
+                result = workflow.apply_async()
+                final_answer = result.get(propagate=True) # propagate=True relance les exceptions des sous-tâches
             else:
                 logger.error(f"Paramètre 'query' manquant pour l'outil 'search_web' pour SID {sid}")
-                # TODO: Notifier l'utilisateur de l'erreur
+                final_answer = "Erreur interne : le paramètre de recherche est manquant."
         else:
             logger.warning(f"Outil non reconnu '{tool_name}' demandé pour SID {sid}")
-            # TODO: Notifier l'utilisateur de l'erreur
+            final_answer = f"Erreur interne : l'outil '{tool_name}' n'est pas reconnu."
     else:
         # L'action est 'respond' ou une erreur de décision.
         # On envoie la réponse directement sans passer par la tâche de synthèse.
         final_answer = decision.get('message', "Je ne suis pas sûr de savoir comment répondre. Pourriez-vous reformuler ?")
         logger.info(f"Envoi de la réponse directe au client SID {sid}")
         
-        # L'événement 'task_result' est écouté par le client HTML
+        # Pour les clients WebSocket, on envoie quand même la réponse via le socket
+        # pour une expérience en temps réel. Le `return` est pour le polling HTTP.
         socketio.emit('task_result', {'status': 'final_answer', 'message': final_answer}, room=sid)
 
-    return "Orchestration initiée."
+    # La valeur retournée ici est le résultat de la tâche Celery,
+    # qui sera récupéré par l'endpoint de polling HTTP.
+    return final_answer
 
 @celery.task(bind=True)
 def search_web_task(self, query):
@@ -232,3 +239,75 @@ Informations de recherche :
         socketio.emit('task_result', {'status': 'error', 'message': final_answer}, room=sid)
     
     return final_answer
+
+def chat_completions():
+   payload = request.json
+   
+   # Récupérer le model_name depuis le payload
+   model_name = payload.get('model')
+   
+   if not model_name:
+       return jsonify({"error": {"message": "Le paramètre 'model' est requis.", "type": "invalid_request_error"}}), 400
+   
+   # Vérifier si le model_name commence par "harpou-agent/" pour l'asynchrone
+   if model_name.startswith("harpou-agent/"):
+       user_question = payload['prompt']
+       task_id = str(uuid.uuid4())
+       
+       # Lancer la tâche asynchrone avec le model_name comme identifiant unique
+       task = current_app.task_queue.apply_async((user_question, model_name), task_id=task_id)
+       
+       return jsonify({
+           "id": task_id,
+           "status": "accepted",
+           "message": "Tâche agentique lancée.",
+           "task_id": task.id
+       }), 202
+   
+   else:
+       # Cas où le model_name ne commence pas par "harpou-agent/" (flux synchrone/streaming direct)
+       stream = payload.get('stream', False)
+       
+       # Déterminer le modèle à utiliser en fonction de la configuration du Gateway
+       default_model = current_app.config.get('DEFAULT_LLM_MODEL', 'harpou-ai-gateway')
+       model_name = model_name if model_name else default_model
+       
+       if stream:
+           # Gérer le streaming HTTP direct
+           def generate():
+               response = get_chat_completion(stream=True, model=model_name)
+               for chunk in response:
+                   content = chunk.choices[0].delta.get('content', '')
+                   event = {
+                       "id": f"chatcmpl-{uuid.uuid4()}",
+                       "object": "chat.completion.chunk",
+                       "created": int(time.time()),
+                       "model": model_name,
+                       "choices": [{
+                           "index": 0,
+                           "delta": {"content": content},
+                           "finish_reason": None if chunk.choices[0].delta else "stop"
+                       }]
+                   }
+                   yield f"data: {jsonify(event).get_data().decode()}\n\n"
+               yield "data: [DONE]\n\n"
+           
+           return Response(generate(), mimetype='text/event-stream')
+       
+       else:
+           # Gérer la réponse JSON complète
+           response = get_chat_completion(stream=False, model=model_name)
+           content = response.choices[0].message.content
+           
+           final_response = {
+               "id": f"chatcmpl-{uuid.uuid4()}",
+               "object": "chat.completion",
+               "created": int(time.time()),
+               "model": model_name,
+               "choices": [{
+                   "index": 0,
+                   "message": {"role": "assistant", "content": content},
+                   "finish_reason": None
+               }],
+               # Les champs usage peuvent être simulés ou laissés vides si non disponibles
+           }

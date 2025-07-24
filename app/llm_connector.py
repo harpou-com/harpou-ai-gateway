@@ -5,6 +5,7 @@ import base64
 import requests
 import mimetypes
 import copy
+import time
 from flask import current_app
 
 
@@ -45,6 +46,52 @@ def _encode_image_url(url):
         current_app.logger.error(f"Impossible de récupérer l'image depuis l'URL {url}: {e}")
         return None
 
+def list_models_from_backend(backend_config):
+    """
+    Interroge un backend pour obtenir la liste des modèles disponibles.
+    Gère les backends de type 'openai' et 'ollama' via leur API compatible OpenAI.
+
+    Args:
+        backend_config (dict): La configuration du backend à interroger.
+
+    Returns:
+        list: Une liste d'objets de modèle (compatibles Pydantic/OpenAI) ou une liste vide en cas d'erreur.
+    """
+    backend_name = backend_config.get('name')
+    backend_type = backend_config.get('type')
+    base_url = backend_config.get('base_url')
+
+    if not base_url:
+        current_app.logger.error(f"URL de base non configurée pour le backend '{backend_name}'.")
+        return []
+
+    # Assurer la compatibilité avec l'API OpenAI d'Ollama qui se trouve sur /v1
+    if 'ollama' in backend_type and base_url and not base_url.endswith('/v1'):
+        base_url = f"{base_url.rstrip('/')}/v1"
+
+    # Le client OpenAI requiert une clé API, même si le backend ne l'utilise pas (ex: Ollama).
+    api_key = backend_config.get('api_key', 'not-needed')
+
+    if 'openai' in backend_type and not backend_config.get('api_key'):
+        current_app.logger.error(f"Clé API manquante pour le backend '{backend_name}' de type '{backend_type}'.")
+        return []
+
+    try:
+        client = openai.OpenAI(base_url=base_url, api_key=api_key, timeout=5.0)
+        models_response = client.models.list()
+        model_list = models_response.data
+        current_app.logger.info(f"{len(model_list)} modèles trouvés pour le backend '{backend_name}'.")
+        return model_list
+
+    except (openai.APIConnectionError, openai.APITimeoutError) as e:
+        current_app.logger.warning(f"Impossible de joindre le backend '{backend_name}' à '{base_url}': {e}")
+    except openai.APIStatusError as e:
+        current_app.logger.error(f"Erreur API du backend '{backend_name}' ({base_url}). Statut: {e.status_code}")
+    except Exception as e:
+        current_app.logger.error(f"Erreur inattendue pour '{backend_name}': {e}", exc_info=True)
+
+    return []
+
 # --- Fonction principale du connecteur ---
 
 def get_llm_completion(prompt, json_mode=False):
@@ -79,7 +126,7 @@ def get_llm_completion(prompt, json_mode=False):
         return response.choices[0].message.content
     return ""
 
-def get_chat_completion(model_name, messages, stream=False, json_mode=False, backend_name=None):
+def get_chat_completion(model_name, messages, stream=False, json_mode=False, backend_name=None, tools=None, tool_choice=None, tried_backends=None):
     """
     Effectue une requête de complétion de chat vers un backend LLM spécifique
     en utilisant une interface compatible avec l'API OpenAI.
@@ -90,6 +137,9 @@ def get_chat_completion(model_name, messages, stream=False, json_mode=False, bac
         stream (bool): Indique si la réponse doit être un flux (stream).
         json_mode (bool): Si True, demande une réponse au format JSON.
         backend_name (str, optional): Le nom du backend à utiliser. Si None, utilise le primaire.
+        tools (list, optional): Une liste d'outils que le modèle peut appeler.
+        tool_choice (str or dict, optional): Contrôle quel outil est appelé par le modèle.
+        tried_backends (set, optional): Un ensemble de noms de backends déjà essayés pour cette requête (utilisé pour le failover).
 
     Returns:
         La réponse de l'API, qui peut être un objet de complétion ou un itérateur
@@ -101,12 +151,19 @@ def get_chat_completion(model_name, messages, stream=False, json_mode=False, bac
     """
     config = current_app.config
     
+    # Initialiser l'ensemble des backends essayés pour le failover
+    if tried_backends is None:
+        tried_backends = set()
+    
     # 1. Déterminer le backend à utiliser
     if not backend_name:
         backend_name = config.get('primary_backend_name')
         if not backend_name:
             raise ValueError("Aucun backend LLM primaire n'est configuré.")
     
+    # Marquer ce backend comme "essayé" pour la logique de failover
+    tried_backends.add(backend_name)
+
     # 2. Récupérer la configuration du backend
     backend_config = _get_backend_config(backend_name)
     if not backend_config:
@@ -143,7 +200,9 @@ def get_chat_completion(model_name, messages, stream=False, json_mode=False, bac
 
     # 3. Préparer les détails de la connexion
     if 'ollama' in backend_type and base_url:
-        base_url = f"{base_url.rstrip('/')}/v1" # L'API compatible OpenAI d'Ollama se trouve sur /v1
+        # Assurer la compatibilité avec l'API OpenAI d'Ollama qui se trouve sur /v1
+        if not base_url.endswith('/v1'):
+            base_url = f"{base_url.rstrip('/')}/v1"
         # Le client OpenAI requiert une clé, même si Ollama ne l'utilise pas.
         api_key = api_key or "ollama"
 
@@ -156,7 +215,7 @@ def get_chat_completion(model_name, messages, stream=False, json_mode=False, bac
     # Le client OpenAI gère api_key=None, mais nous mettons une valeur par défaut pour la clarté.
     api_key = api_key or "not-needed"
 
-    try:
+    try: # Bloc principal pour la tentative de connexion et l'appel API
         client = openai.OpenAI(
             base_url=base_url,
             api_key=api_key,
@@ -166,6 +225,11 @@ def get_chat_completion(model_name, messages, stream=False, json_mode=False, bac
         if json_mode:
             # Pour la compatibilité avec OpenAI, on utilise response_format
             params["response_format"] = {"type": "json_object"}
+
+        if tools:
+            params["tools"] = tools
+        if tool_choice:
+            params["tool_choice"] = tool_choice
 
         response = client.chat.completions.create(**params)
 
@@ -190,6 +254,39 @@ def get_chat_completion(model_name, messages, stream=False, json_mode=False, bac
                 # On ne lève pas d'exception, on retourne la réponse brute pour que l'appelant puisse la gérer.
 
         return response
+    except (openai.APIConnectionError, openai.APITimeoutError) as e:
+        current_app.logger.warning(f"Le backend '{backend_name}' a échoué : {e}. Tentative de basculement (failover).")
+
+        # --- LOGIQUE DE BASCULEMENT (FAILOVER) ---
+        ha_strategy = config.get('high_availability_strategy')
+        if ha_strategy != 'failover':
+            # Si la stratégie n'est pas le failover, on ne fait rien et on relance l'erreur.
+            raise e
+
+        all_backends = config.get('llm_backends', [])
+        
+        # Trouver le prochain backend disponible qui n'a pas encore été essayé
+        next_backend_to_try = None
+        for backend in all_backends:
+            if backend.get('name') not in tried_backends:
+                next_backend_to_try = backend
+                break
+        
+        if next_backend_to_try:
+            next_backend_name = next_backend_to_try.get('name')
+            current_app.logger.info(f"Basculement vers le prochain backend disponible : '{next_backend_name}'.")
+            
+            # Appel récursif avec le nouveau backend et la liste des backends déjà essayés
+            return get_chat_completion(
+                model_name=model_name, messages=messages, stream=stream, json_mode=json_mode,
+                backend_name=next_backend_name, tools=tools, tool_choice=tool_choice,
+                tried_backends=tried_backends # Passer l'ensemble mis à jour
+            )
+        else:
+            # Si tous les backends ont été essayés et ont échoué
+            current_app.logger.error("Tous les backends configurés ont échoué. Impossible de traiter la requête.")
+            raise e # Relancer la dernière exception de connexion
+
     except openai.APIError as e:
         current_app.logger.error(f"Erreur d'API lors de l'appel à '{backend_type}': {e}")
         raise

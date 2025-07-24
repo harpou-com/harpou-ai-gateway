@@ -5,7 +5,7 @@ import logging
 from logging.handlers import TimedRotatingFileHandler
 from flask import Flask
 from dotenv import load_dotenv
-from .extensions import celery, socketio
+from .extensions import celery, socketio, limiter
 from flask_cors import CORS
 
 # Charger les variables d'environnement, sauf en mode test pour éviter les I/O bloquantes sur le filesystem.
@@ -58,6 +58,32 @@ def configure_logging(app):
             f"Valeur invalide '{invalid_rotation_value}' pour LOG_ROTATION_DAYS. "
             f"Utilisation de la valeur par défaut : {default_rotation_days} jours."
         )
+
+def configure_audit_logging(app):
+    """
+    Configure la journalisation d'audit dans un fichier séparé 'audit.log'.
+    Cette journalisation est destinée à enregistrer les requêtes et réponses
+    sous forme structurée (JSON) pour une analyse ultérieure.
+    """
+    log_dir = os.path.join(os.path.abspath(os.path.join(app.root_path, os.pardir)), 'logs')
+    if not os.path.exists(log_dir):
+        # configure_logging a déjà dû afficher un avertissement si la création a échoué.
+        return
+
+    # Le logger d'audit n'a pas de format complexe, car on logguera directement du JSON.
+    audit_formatter = logging.Formatter('%(message)s')
+    
+    # Utiliser la même configuration de rotation que les logs principaux.
+    rotation_days = int(app.config.get('LOG_ROTATION_DAYS', 7))
+
+    audit_log_file = os.path.join(log_dir, 'audit.log')
+    audit_handler = TimedRotatingFileHandler(audit_log_file, when='midnight', backupCount=rotation_days, encoding='utf-8')
+    audit_handler.setFormatter(audit_formatter)
+
+    audit_logger = logging.getLogger('audit')
+    audit_logger.setLevel(logging.INFO)
+    audit_logger.addHandler(audit_handler)
+    audit_logger.propagate = False # Empêche les logs d'audit de remonter au logger racine.
 
 def create_app(config_object=None, init_socketio=True):
     """
@@ -123,6 +149,8 @@ def create_app(config_object=None, init_socketio=True):
         'LOG_ROTATION_DAYS': 'LOG_ROTATION_DAYS',
         'PRIMARY_BACKEND_NAME': 'primary_backend_name',
         'HIGH_AVAILABILITY_STRATEGY': 'high_availability_strategy',
+        'RATELIMIT_DEFAULT': 'RATELIMIT_DEFAULT',
+        'RATELIMIT_STORAGE_URI': 'RATELIMIT_STORAGE_URI',
     }
 
     for env_key, config_key in env_to_config_map.items():
@@ -165,6 +193,7 @@ def create_app(config_object=None, init_socketio=True):
 
     # --- Configuration de la journalisation (AVANT de logger la config) ---
     configure_logging(app)
+    configure_audit_logging(app)
 
     # --- Journalisation de la configuration finale ---
     app.logger.info("="*50)
@@ -184,7 +213,13 @@ def create_app(config_object=None, init_socketio=True):
         app.logger.info(f"      - Auto Load Models: {backend.get('llm_auto_load')}")
     app.logger.info(f"  - Primary Backend: {app.config.get('primary_backend_name')}")
     app.logger.info(f"  - High Availability Strategy: {app.config.get('high_availability_strategy')}")
+    app.logger.info(f"  - Rate Limit Default: {app.config.get('RATELIMIT_DEFAULT', 'non défini')}")
+    app.logger.info(f"  - Rate Limit Storage: {app.config.get('RATELIMIT_STORAGE_URI', 'en mémoire')}")
     app.logger.info("="*50)
+
+    # Initialiser Flask-Limiter
+    # Les limites sont lues depuis la configuration de l'application (ex: RATELIMIT_DEFAULT)
+    limiter.init_app(app)
 
     # Initialiser Celery
     init_celery(app)
