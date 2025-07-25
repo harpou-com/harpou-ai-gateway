@@ -24,14 +24,14 @@ WORKDIR /app
 
 # Créer un utilisateur et un groupe non-root pour la sécurité
 # La commande `adduser --system` est la méthode correcte pour les images basées sur Debian (comme python:slim)
-RUN addgroup --system appgroup && adduser --system --no-create-home --group appuser
+RUN addgroup --system --gid 1000 appgroup && adduser --system --create-home --home /home/appuser --uid 1000 --ingroup appgroup appuser
 
 # Copier l'environnement virtuel depuis l'étape de build
 COPY --from=builder /app/__pypackages__/3.11 /app/__pypackages__/3.11
 
 # Copier le code de l'application
 COPY app ./app
-COPY run.py celery_worker.py ./
+COPY run.py celery_worker.py worker_launcher.py ./
 
 # Ajouter le chemin des paquets au PYTHONPATH et le rendre non-bufferisé
 ENV PYTHONPATH=/app/__pypackages__/3.11/lib

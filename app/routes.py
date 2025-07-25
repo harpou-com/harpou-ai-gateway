@@ -50,7 +50,7 @@ def chat():
 
 @bp.route('/v1/models', methods=['GET'])
 @require_api_key
-@limiter.limit() # Applique la limite de taux par défaut configurée
+@limiter.limit("60/minute") # Applique une limite de 60 requêtes par minute
 def list_models():
     """
     Découverte des modèles. Retourne une liste de tous les modèles disponibles
@@ -89,7 +89,7 @@ def list_models():
 
 @bp.route('/v1/chat/completions', methods=['POST'])
 @require_api_key
-@limiter.limit() # Applique la limite de taux par défaut configurée
+@limiter.limit("120 per minute") # Applique une limite de 120 requêtes par minute
 def chat_completions():
     """
     Point d'entrée pour la compatibilité avec l'API OpenAI (ex: Open WebUI).
@@ -283,7 +283,7 @@ def chat_completions():
 
 @bp.route('/v1/tasks/status/<task_id>', methods=['GET'])
 @require_api_key
-@limiter.limit()
+@limiter.limit("120 per minute")
 def get_task_status(task_id):
     """
     Sonde le statut d'une tâche Celery asynchrone.

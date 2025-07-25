@@ -116,7 +116,10 @@ ipython_config.py
 #pdm.toml
 .pdm-python
 .pdm-build/
+.pdm_cache/
 
+# IDE - VSCode
+.vscode/
 # pixi
 #   Similar to Pipfile.lock, it is generally recommended to include pixi.lock in version control.
 #pixi.lock

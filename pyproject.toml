@@ -15,6 +15,7 @@ dependencies = [
     "flask-cors>=3.0.0",
     "requests>=2.20",
     "openai>=1.97.0",
+    "flask-limiter>=3.12",
 ]
 requires-python = ">=3.11"
 readme = "README.md"
