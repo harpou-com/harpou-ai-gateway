@@ -47,7 +47,7 @@ Pour permettre à Open WebUI d'utiliser les modèles de langage servis par le Ga
     *   **API Key :** Laissez ce champ vide, sauf si vous avez configuré une authentification sur le Gateway.
     *   Cliquez sur "Save".
 
-> **Note :** À ce stade, la connexion est établie, mais les modèles ne s'afficheront pas automatiquement car la route `/v1/models` n'est pas encore implémentée dans le Gateway. Vous devez les ajouter manuellement.
+> **Note :** Une fois la connexion sauvegardée, Open WebUI interrogera le Gateway pour obtenir la liste des modèles disponibles. Si un modèle que vous attendez n'apparaît pas dans la liste, vous pouvez l'ajouter manuellement comme décrit ci-dessous.
 
 ### Ajout manuel d'un modèle
 
@@ -57,8 +57,7 @@ Pour utiliser un modèle via le Gateway, vous devez spécifier son identifiant e
 2.  **Sélectionnez un Modèle :** Cliquez sur le sélecteur de modèle en haut au centre (il peut afficher "Select a model").
 3.  **Entrez l'ID du Modèle :** Dans le champ de recherche qui apparaît, tapez l'identifiant complet du modèle tel que configuré dans votre Gateway. Le format est `backend_name/model_name`.
     *   Par exemple, si votre `default_model` est `llama2` et qu'il est servi par le backend `ollama-local-1`, l'identifiant à utiliser est : `ollama-local-1/llama2`.
-
-    > **Important :** L'identifiant exact dépend de la configuration de votre fichier `config.yaml` dans le Gateway.
+    > **Important :** L'identifiant exact (`backend_name`) dépend de la configuration de votre fichier `config.yaml` dans le Gateway. Fiez-vous aux logs de démarrage du `worker-dev` pour voir les noms des backends configurés (par exemple, `ollama_local`, `openai_cloud`).
 
 4.  **Commencez à chatter :** Une fois l'identifiant entré, vous pouvez commencer à envoyer des messages. Open WebUI transmettra la requête au Gateway, qui la routera vers le bon backend LLM.
 
@@ -86,7 +85,13 @@ Une fois le pipe installé et configuré, les modèles agentiques apparaîtront 
     *   `harpou-agent/image-generation`
 2.  **Lancez une Tâche :** Posez une question ou donnez une instruction au modèle agentique sélectionné.
 3.  **Suivez la Progression :** Le pipe gère la communication asynchrone avec le Gateway. Vous recevrez un premier message confirmant le lancement, des mises à jour de statut pour les tâches longues, et enfin le résultat final directement dans le chat.
+4.  **Vérifiez le Comportement Attendu :**
+    *   **Dans Open WebUI :** Vous devriez voir une réponse immédiate du pipe confirmant que la tâche a été lancée. Ensuite, des messages de statut (par exemple, "Recherche en cours...") peuvent apparaître, suivis du résultat final.
+    *   **Dans les logs du `gateway-dev` :** Vous devriez voir une requête `POST` vers une route de tâche (par exemple `/v1/tasks/invoke`), qui retournera un statut `202 Accepted`. C'est différent de la route `/v1/chat/completions` utilisée par les modèles standards.
+    *   **Dans les logs du `worker-dev` :** Vous verrez des logs indiquant la réception et l'exécution de la tâche Celery correspondante (par exemple, `orchestrator_task` ou `search_web_task`).
 
+    Cette observation combinée (UI + logs) confirme que le pipe fonctionne correctement et que la communication asynchrone est bien en place.
+    
 ## Dépannage
 
 *   **Erreur de connexion au Gateway :**
