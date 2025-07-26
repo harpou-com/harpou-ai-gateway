@@ -18,18 +18,18 @@ graph TD
         end
         
         subgraph "Logique de Routage & Orchestration"
-            RL(Routage Intelligent: `chat_completions`)
-            OT(Tâche Orchestrateur: `orchestrator_task`)
+            RL(Routage Intelligent: 'chat_completions')
+            OT(Tâche Orchestrateur: 'orchestrator_task')
         end
 
         subgraph "Connecteur LLM (app/llm_connector.py)"
-            LLMC(LLM Connector: `get_chat_completion`)
+            LLMC(LLM Connector: 'get_chat_completion')
         end
 
         subgraph "Tâches de Traitement (app/tasks.py)"
-            DEC(Décision LLM: `get_llm_decision`)
-            SW(Outil: `search_web_task`)
-            SYN(Synthèse LLM: `synthesis_task`)
+            DEC(Décision LLM: 'get_llm_decision')
+            SW(Outil: 'search_web_task')
+            SYN(Synthèse LLM: 'synthesis_task')
         end
     end
 
@@ -71,13 +71,19 @@ graph TD
     SYN -- "Retourne Réponse Finale" --> OT
     
     %% Réponses Agentiques vers Pipe
+    %% Le client reçoit un ID de tâche et peut soit sonder le statut, soit attendre une notification WebSocket.
     OT -- "Réponse Tâche ID (HTTP 202)" --> P
-    RS -- "Interroge Statut (`AsyncResult`)" --> REDIS
+
+    %% Flux 1: Notification proactive (préféré via WebSocket)
+    socketio_obj -- "Pousse Résultat/Statut via SID" --> P
+
+    %% Flux 2: Sondage manuel (fallback/optionnel via HTTP)
+    RS -- "Interroge Statut ('AsyncResult')" --> REDIS
     REDIS -- "Statut/Résultat Tâche" --> RS
     RS -- "Retourne Statut/Résultat" --> P
     P -- "Stream Résultat à l'UI" --> A
 
-    %% Flux Standard (via Pipe)
+    %% Flux Standard (Synchrone via HTTP)
     LLMC -- "Appelle API LLM" --> EL
     EL -- "Réponse LLM" --> LLMC
     LLMC -- "Réponse Directe/Stream HTTP" --> P
