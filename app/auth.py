@@ -4,6 +4,17 @@ Gestion de l'authentification pour l'API Gateway.
 from functools import wraps
 from flask import request, jsonify, current_app, g
 
+def _initialize_api_keys(app):
+    """
+    Transforme la liste de clés API de la configuration en un dictionnaire
+    pour une recherche rapide. Ceci est fait une seule fois au démarrage.
+    """
+    with app.app_context():
+        keys_list = current_app.config.get('api_keys', [])
+        # Crée un dictionnaire où la clé est la clé API et la valeur est l'objet d'info
+        # ex: {"sk-abc": {"key": "sk-abc", "owner": "user1"}}
+        app.config['API_KEYS_DICT'] = {item['key']: item for item in keys_list if 'key' in item}
+
 def require_api_key(f):
     """
     Un décorateur pour protéger les routes qui nécessitent une clé API.
@@ -13,13 +24,13 @@ def require_api_key(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         # 1. Récupérer la liste des clés API valides depuis la configuration
-        # La configuration attend une liste d'objets, ex: [{"key": "sk-...", "owner": "user1"}]
-        valid_keys_config = current_app.config.get('api_keys', [])
+        # Il est pré-calculé au démarrage pour de meilleures performances.
+        valid_keys_dict = current_app.config.get('API_KEYS_DICT', {})
         
         # Si aucune clé n'est configurée dans le fichier config.json, l'accès est public.
         # C'est un comportement par défaut pour faciliter le démarrage.
         # Pour sécuriser, il suffit d'ajouter au moins une clé dans la configuration.
-        if not valid_keys_config:
+        if not valid_keys_dict:
             current_app.logger.warning("Aucune clé API n'est configurée ('api_keys' est vide ou absent dans la config). L'accès à l'API est public.")
             g.api_key_info = {"owner": "public"} # Pour la journalisation/limitation
             return f(*args, **kwargs)
@@ -31,13 +42,8 @@ def require_api_key(f):
             provided_key = auth_header.split(' ', 1)[1]
 
         # 3. Vérifier si la clé est valide et récupérer ses informations
-        key_info = None
-        if provided_key:
-            for item in valid_keys_config:
-                if item.get('key') == provided_key:
-                    key_info = item
-                    break
-        
+        key_info = valid_keys_dict.get(provided_key)
+
         if key_info:
             g.api_key_info = key_info # Attacher les infos de la clé au contexte de la requête
             return f(*args, **kwargs) # La clé est valide, on continue

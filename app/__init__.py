@@ -163,6 +163,30 @@ def create_app(config_object=None, init_socketio=True):
                 app.logger.info(f"  -> Surcharge de '{config_key}' avec la variable d'environnement '{env_key}'.")
             config[config_key] = env_value
     
+    # Scénario 3: Surcharge de la configuration des clés API
+    # Priorité 1: Clé unique simple via API_KEY
+    if api_key := os.environ.get('API_KEY'):
+        app.logger.info("Mode de configuration 'clé API unique' détecté via la variable d'environnement 'API_KEY'.")
+        rate_limit = os.environ.get('API_KEY_RATE_LIMIT', '100/hour')
+        app.logger.info(f" -> Clé unique configurée avec un rate_limit de '{rate_limit}'.")
+        config['api_keys'] = [
+            {
+                "key": api_key,
+                "owner": "default_user",
+                "rate_limit": rate_limit
+            }
+        ]
+    # Priorité 2: Configuration multi-clés via API_KEYS_JSON
+    elif api_keys_json_str := os.environ.get('API_KEYS_JSON'):
+        app.logger.info("Tentative de surcharge de 'api_keys' avec la variable d'environnement 'API_KEYS_JSON'.")
+        try:
+            api_keys_from_env = json.loads(api_keys_json_str)
+            if isinstance(api_keys_from_env, list):
+                config['api_keys'] = api_keys_from_env
+        except json.JSONDecodeError:
+            app.logger.error("La variable d'environnement 'API_KEYS_JSON' contient un JSON invalide.")
+    # Si aucune variable d'environnement n'est définie, la configuration de config.json est utilisée.
+    
     # 3. Gérer la clé secrète avec la plus haute priorité (Docker Secrets)
     secret_key_source = "non définie"
     secret_key_value = config.get('FLASK_SECRET_KEY') # Valeur de base (json/env)
@@ -216,6 +240,12 @@ def create_app(config_object=None, init_socketio=True):
     app.logger.info(f"  - Rate Limit Default: {app.config.get('RATELIMIT_DEFAULT', 'non défini')}")
     app.logger.info(f"  - Rate Limit Storage: {app.config.get('RATELIMIT_STORAGE_URI', 'en mémoire')}")
     app.logger.info("="*50)
+
+    # --- Initialisation des modules et extensions ---
+
+    # Pré-calculer le dictionnaire de clés API pour des recherches rapides
+    from .auth import _initialize_api_keys
+    _initialize_api_keys(app)
 
     # Initialiser Flask-Limiter
     # Les limites sont lues depuis la configuration de l'application (ex: RATELIMIT_DEFAULT)

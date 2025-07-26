@@ -32,5 +32,12 @@
     "CELERY_BROKER_URL": "redis://localhost:6379/0",
     "CELERY_RESULT_BACKEND": "redis://localhost:6379/0",
     "LOG_LEVEL": "info",
-    "LOG_ROTATION_DAYS": 7
+    "LOG_ROTATION_DAYS": 7,
+    "api_keys": [
+        {
+            "key": "sk-my-first-key-for-user1",
+            "owner": "user_1",
+            "rate_limit": "100/hour"
+        }
+    ]
 }
