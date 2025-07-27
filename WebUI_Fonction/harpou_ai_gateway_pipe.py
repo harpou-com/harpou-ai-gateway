@@ -51,10 +51,7 @@ class Pipe:
         Initializes the pipe, setting up the configuration and the HTTP client.
         """
         self.valves = self.Valves()
-        # Le client est initialisé sans en-têtes spécifiques à une requête
-        self.client = httpx.AsyncClient(
-            base_url=self.valves.GATEWAY_URL
-        )
+        self.client = httpx.AsyncClient(base_url=self.valves.GATEWAY_URL)
         log.info(f"HARPOU AI Gateway Pipe initialized for URL: {self.valves.GATEWAY_URL}")
 
     async def pipes(self) -> List[Dict[str, str]]:
@@ -91,83 +88,98 @@ class Pipe:
             model = body.get("model", "")
             messages = body.get("messages", [])
 
-            if not model.startswith(self.valves.AGENT_MODEL_PREFIX):
-                log.warning(f"Model '{model}' is not an agentic model. This pipe will not handle it.")
+            if model.startswith(self.valves.AGENT_MODEL_PREFIX):
+                # Existing agentic flow logic remains unchanged for now (task launch, polling via poll_task_status, streaming of task result).
+                log.info(f"Starting agentic task flow for model: {model}")
+                # Prepare the payload for the gateway
+                gateway_payload = {
+                    "model": model,
+                    "messages": messages,
+                }
 
-            # Prepare the payload for the gateway
-            gateway_payload = {
-                "model": model,
-                "messages": messages,
-            }
+                # Préparer les en-têtes pour la requête, y compris la clé API et le SID
+                headers = {"Content-Type": "application/json"}
+                api_key = self.valves.GATEWAY_API_KEY.get_secret_value()
+                if api_key:
+                    headers["Authorization"] = f"Bearer {api_key}"
 
-            # Préparer les en-têtes pour la requête, y compris la clé API et le SID
-            headers = {"Content-Type": "application/json"}
-            api_key = self.valves.GATEWAY_API_KEY.get_secret_value()
-            if api_key:
-                headers["Authorization"] = f"Bearer {api_key}"
+                # Ajout crucial du SID pour les requêtes agentiques
+                sid = __user__.get("sid")
+                if sid:
+                    headers["X-SID"] = sid
+                    log.info(f"Adding X-SID header for agentic request: {sid}")
 
-            # Ajout crucial du SID pour les requêtes agentiques
-            sid = __user__.get("sid")
-            if sid:
-                headers["X-SID"] = sid
-                log.info(f"Adding X-SID header for agentic request: {sid}")
+                log.info(f"Sending agentic task request to HARPOU AI Gateway for model {model}.")
 
-            log.info(f"Sending agentic task request to HARPOU AI Gateway for model {model}.")
+                # 5. Call the HARPOU AI Gateway
+                response = await self.client.post(
+                    "/v1/chat/completions", json=gateway_payload, headers=headers, timeout=60
+                )
 
-            # 5. Call the HARPOU AI Gateway
-            response = await self.client.post(
-                "/v1/chat/completions", json=gateway_payload, headers=headers, timeout=60
-            )
+                # 6. Handle the gateway's response
+                if response.status_code == 202: # 202 Accepted
+                    response_data = response.json()
+                    task_id = response_data.get("id")
+                    if not task_id:
+                        log.error("Le Gateway a accepté la tâche mais n'a pas retourné de task_id.")
+                        yield 'data: {"error": "La tâche a été acceptée mais aucun ID n\'a été reçu."}\n\n'
+                        yield "data: [DONE]\n\n"
+                        return
 
-            # 6. Handle the gateway's response
-            if response.status_code == 202: # 202 Accepted
-                response_data = response.json()
-                task_id = response_data.get("id")
-                if not task_id:
-                    log.error("Le Gateway a accepté la tâche mais n'a pas retourné de task_id.")
-                    yield 'data: {"error": "La tâche a été acceptée mais aucun ID n\'a été reçu."}\n\n'
-                    yield "data: [DONE]\n\n"
-                    return
+                    log.info(f"Agentic task started successfully with task_id: {task_id}")
+                    yield 'data: {"content": "⏳ Tâche agentique lancée. En attente du résultat..."}\n\n'
 
-                log.info(f"Agentic task started successfully with task_id: {task_id}")
-                yield 'data: {"content": "⏳ Tâche agentique lancée. En attente du résultat..."}\n\n'
+                    # 7. Poll for the task result
+                    start_time = time.time()
+                    while time.time() - start_time < POLLING_TIMEOUT:
+                        try:
+                            status_response = await self.client.get(
+                                f"/v1/tasks/status/{task_id}", headers=headers, timeout=10
+                            )
+                            status_response.raise_for_status()
+                            data = status_response.json()
+                            status = data.get("status")
 
-                # 7. Poll for the task result
-                start_time = time.time()
-                while time.time() - start_time < POLLING_TIMEOUT:
-                    try:
-                        status_response = await self.client.get(
-                            f"/v1/tasks/status/{task_id}", headers=headers, timeout=10
-                        )
-                        status_response.raise_for_status()
-                        data = status_response.json()
-                        status = data.get("status")
+                            if status == "completed":
+                                result = data.get("result", "Tâche terminée, mais aucun résultat retourné.")
+                                log.info(f"[{task_id}] Tâche terminée. Résultat: {result}")
+                                yield f'data: {json.dumps({"content": str(result)})}\n\n'
+                                break  # Sortir de la boucle de polling
+                            elif status == "failed":
+                                error_message = data.get("error", "Une erreur inconnue est survenue pendant la tâche.")
+                                log.error(f"[{task_id}] La tâche a échoué: {error_message}")
+                                yield f'data: {json.dumps({"error": str(error_message)})}\n\n'
+                                break # Sortir de la boucle de polling
+                            elif status == "in_progress":
+                                log.debug(f"[{task_id}] Tâche toujours en cours...")
+                            else:
+                                log.warning(f"[{task_id}] Statut inattendu reçu: {status}")
 
-                        if status == "completed":
-                            result = data.get("result", "Tâche terminée, mais aucun résultat retourné.")
-                            log.info(f"[{task_id}] Tâche terminée. Résultat: {result}")
-                            yield f'data: {json.dumps({"content": str(result)})}\n\n'
-                            break  # Sortir de la boucle de polling
-                        elif status == "failed":
-                            error_message = data.get("error", "Une erreur inconnue est survenue pendant la tâche.")
-                            log.error(f"[{task_id}] La tâche a échoué: {error_message}")
-                            yield f'data: {json.dumps({"error": str(error_message)})}\n\n'
-                            break # Sortir de la boucle de polling
-                        elif status == "in_progress":
-                            log.debug(f"[{task_id}] Tâche toujours en cours...")
-                        else:
-                            log.warning(f"[{task_id}] Statut inattendu reçu: {status}")
+                        except httpx.RequestError as e:
+                            log.warning(f"[{task_id}] Erreur réseau lors du polling : {e}. Nouvelle tentative...")
+                        await asyncio.sleep(POLLING_INTERVAL)
+                    else: # S'exécute si la boucle while se termine sans 'break' (timeout)
+                        log.warning(f"[{task_id}] Le polling a expiré après {POLLING_TIMEOUT} secondes.")
+                        yield 'data: {"error": "La tâche a expiré (timeout)."}\n\n'
 
-                    except httpx.RequestError as e:
-                        log.warning(f"[{task_id}] Erreur réseau lors du polling : {e}. Nouvelle tentative...")
-                    await asyncio.sleep(POLLING_INTERVAL)
-                else: # S'exécute si la boucle while se termine sans 'break' (timeout)
-                    log.warning(f"[{task_id}] Le polling a expiré après {POLLING_TIMEOUT} secondes.")
-                    yield 'data: {"error": "La tâche a expiré (timeout)."}\n\n'
-
-            else:
-                log.error(f"Failed to start agentic task. Status code: {response.status_code}, Response: {response.text}")
-                yield f'data: {json.dumps({"error": f"Erreur lors du lancement de la tâche. Statut: {response.status_code}"})}\n\n'
+                else:
+                    log.error(f"Failed to start agentic task. Status code: {response.status_code}, Response: {response.text}")
+                    yield f'data: {json.dumps({"error": f"Erreur lors du lancement de la tâche. Statut: {response.status_code}"})}\n\n'
+            else:  # Gestion des requêtes LLM qui ne sont pas des requêtes agentiques
+                stream = body.get('stream', False)
+                
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {self.valves.GATEWAY_API_KEY.get_secret_value()}"
+                }
+                
+                if stream:
+                    async for line in self.client.stream("POST", "/v1/chat/completions", headers=headers, json=body):
+                        yield f'data: {json.dumps(line)}\n\n'
+                else:
+                    response = await self.client.post("/v1/chat/completions", headers=headers, json=body)
+                    response_text = await response.aread()
+                    yield f'data: {response_text}\n\n'
 
         except httpx.TimeoutException as e:
             log.error(f"Timeout error while calling HARPOU AI Gateway: {e}")
@@ -176,7 +188,27 @@ class Pipe:
             log.error(f"An unexpected error occurred: {e}", exc_info=True)
             yield 'data: {"error": "Une erreur inattendue est survenue dans le pipe."}\n\n'
 
-        yield "data: [DONE]\n\n"
+    yield "data: [DONE]\n\n"
+
+    async def discover_models(self):
+        """
+        Discovers available models by making an HTTP GET request to the /v1/models endpoint of our Gateway.
+        Returns a list of model IDs.
+        """
+        try:
+            headers = {
+                "Authorization": f"Bearer {self.valves.GATEWAY_API_KEY.get_secret_value()}"
+            }
+            response = await httpx.get(f"{self.valves.GATEWAY_URL}/v1/models", headers=headers)
+            response.raise_for_status()  # Raise an error for HTTP errors (4xx and 5xx)
+            models = response.json()
+            model_ids = [model['id'] for model in models]
+            return model_ids
+        except httpx.RequestError as e:
+            log.error(f"HTTP request error: {e}")
+            return []
+        except httpx.HTTPStatusError as e:
+            log.error(f"HTTP status error: {e}")
+            return []
 
 
-            

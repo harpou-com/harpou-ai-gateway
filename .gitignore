@@ -208,3 +208,6 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Exclure a:\Git\harpou-ai-gateway\logs des opérations de git add et pull
+/logs
