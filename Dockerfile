@@ -7,7 +7,7 @@ WORKDIR /app
 # Installer les dépendances système nécessaires pour construire certains paquets Python (comme greenlet)
 # et PDM lui-même.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends build-essential python3-dev procps && \
+    apt-get install -y --no-install-recommends build-essential python3-dev procps libxml2-dev libxslt-dev && \
     rm -rf /var/lib/apt/lists/* && \
     pip install --no-cache-dir pdm
 

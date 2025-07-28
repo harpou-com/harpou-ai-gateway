@@ -57,34 +57,40 @@ Intégration de modèles spécialisés (vidéo, 3D, audio) en tant que nouveaux 
 4. Configuration
 La configuration de l'AI Gateway est flexible et peut être gérée de plusieurs manières, avec la priorité suivante :
 
-1.  **Variables d'environnement (recommandé pour la production)**
-2.  Fichier `config/config.json` (pour le développement local)
+1.  **Variables d'environnement** : Idéal pour la production et les déploiements Docker/Swarm. Elles surchargent les valeurs du fichier de configuration.
+2.  **Fichier `config/config.json`** : C'est la source de vérité principale pour la configuration, particulièrement pour le développement local et la définition de configurations complexes comme les backends multiples.
+
+Un fichier `config/config.example.json` est fourni comme modèle.
 
 ### Variables d'environnement
 Le Gateway peut être entièrement configuré via des variables d'environnement.
 
+> **Note Importante sur la Cohérence :** Pour garantir un fonctionnement stable et prévisible, il est crucial que tous les services (`web`, `worker`, `beat`) partagent la même configuration. Les variables d'environnement qui définissent des connexions (comme `REDIS_URL`) ou le comportement du backend (`LLM_...`) doivent être appliquées de manière identique à tous les services dans votre configuration de déploiement (ex: `docker-compose.yml` ou `ai.yml`).
+
+
 #### Authentification & Sécurité
 
--   **Mode Simple (1 clé API) :**
-    -   `API_KEY`: La clé API que les clients utiliseront.
-    -   `API_KEY_RATE_LIMIT`: (Optionnel) La limite de requêtes pour cette clé (ex: `"100/hour"`).
--   **Mode Avancé (multiples clés) :**
-    -   `API_KEYS_JSON`: Une chaîne JSON contenant une liste d'objets de clés. A la priorité sur `API_KEY`.
+-   **`API_KEY`**: La clé API que les clients utiliseront (mode simple).
+    -   Peut être une valeur directe ou un chemin vers un fichier secret (ex: `/run/secrets/api_key`).
+-   **`API_KEY_RATE_LIMIT`**: (Optionnel) La limite de requêtes pour la clé unique (ex: `"100/hour"`). Par défaut : `"100/hour"`.
+-   **`API_KEYS_JSON`**: (Mode avancé) Une chaîne JSON contenant une liste d'objets de clés. A la priorité sur `API_KEY`.
 -   **Clé secrète Flask :**
     -   `FLASK_SECRET_KEY`: Clé secrète pour signer les sessions.
     -   `FLASK_SECRET_KEY_FILE`: (Recommandé pour Docker) Chemin vers un fichier contenant la clé secrète. A la priorité sur `FLASK_SECRET_KEY`.
 
-#### Backend LLM (Mode Simple)
+#### Backend LLM (Surcharge en mode simple)
 
--   **Mode Simple (1 backend) :**
-    -   `LLM_BACKEND_TYPE`: Type de backend (`ollama`, `openai`).
-    -   `LLM_BASE_URL`: URL de base de l'API du backend.
-    -   `LLM_DEFAULT_MODEL`: Modèle à utiliser par défaut.
-    -   `LLM_API_KEY`: (Optionnel) Clé API pour le backend LLM lui-même.
-    -   `LLM_AUTO_LOAD`: (Optionnel, pour `ollama`) `true` pour charger automatiquement les modèles en mémoire. Par défaut : `false`.
--   **Mode Avancé (Haute Disponibilité) :**
-    -   `PRIMARY_BACKEND_NAME`: Nom du backend principal à utiliser (doit correspondre à un nom dans `config.json`).
-    -   `HIGH_AVAILABILITY_STRATEGY`: Stratégie de haute disponibilité (`none`, `failover`).
+Ces variables permettent de surcharger la configuration `llm_backends` de `config.json` pour définir un unique backend par défaut. C'est utile pour des déploiements simples.
+
+-   `LLM_BACKEND_TYPE`: Type de backend (`ollama`, `openai`).
+-   `LLM_BASE_URL`: URL de base de l'API du backend.
+-   `LLM_DEFAULT_MODEL`: Modèle à utiliser par défaut.
+-   `LLM_API_KEY`: (Optionnel) Clé API pour le backend LLM lui-même.
+-   `LLM_AUTO_LOAD`: (Optionnel) `true` pour découvrir automatiquement les modèles du backend. Par défaut : `false`.
+
+Pour une configuration multi-backends ou de haute disponibilité, utilisez le fichier `config.json`.
+-   `PRIMARY_BACKEND_NAME`: Nom du backend principal à utiliser (doit correspondre à un nom dans `config.json`).
+-   `HIGH_AVAILABILITY_STRATEGY`: Stratégie de haute disponibilité (`none`, `failover`).
 
 #### Services Externes
 
@@ -94,10 +100,12 @@ Le Gateway peut être entièrement configuré via des variables d'environnement.
 -   **Recherche Web :**
     -   `SEARXNG_BASE_URL`: URL de base de votre instance SearXNG.
 
-#### Journalisation (Logging)
+#### Journalisation & Performance
 
 -   `LOG_LEVEL`: Niveau de journalisation (`DEBUG`, `INFO`, `WARNING`, `ERROR`). Par défaut : `INFO`.
 -   `LOG_ROTATION_DAYS`: Nombre de jours de rétention des fichiers de log. Par défaut : `7`.
+-   `LLM_CACHE_MIN_UPDATE`: (Optionnel) Intervalle en minutes pour rafraîchir le cache de la liste des modèles. Par défaut : `5`.
+-   `LLM_BACKEND_TIMEOUT`: (Optionnel) Délai d'attente en secondes pour les requêtes vers les backends LLM. Utile pour les modèles lents à charger. Par défaut : `300`.
 
 #### Limitation de Débit (Rate Limiting)
 

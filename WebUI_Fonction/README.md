@@ -107,6 +107,7 @@ Une fois le pipe installé et configuré, les modèles agentiques apparaîtront 
 *   **Les conversations avec les modèles standards échouent :**
     *   Vérifiez que l'identifiant du modèle (`backend_name/model_name`) est exact et correspond à votre `config.yaml`.
     *   Assurez-vous que le backend LLM (par ex. Ollama) est bien en cours d'exécution et que le Gateway peut y accéder.
+    *   **Erreur de Timeout :** Si la première requête à un modèle échoue avec une erreur de timeout, cela peut être dû au temps de chargement du modèle par le backend. Le Gateway utilise un délai d'attente par défaut de 300 secondes (5 minutes), mais vous pouvez l'ajuster avec la variable d'environnement `LLM_BACKEND_TIMEOUT` si nécessaire.
 
 ## Contribuer
 

@@ -6,8 +6,11 @@ la logique de décision de l'IA et les outils associés.
 # 1. Imports
 # Standard library
 import json
+from bs4 import BeautifulSoup
+import copy
 import uuid
 import time
+from typing import Optional, List, Dict, Any
 
 # Third-party libraries
 import requests
@@ -17,10 +20,12 @@ from celery.utils.log import get_task_logger
 
 # Local application imports
 from .extensions import celery, socketio
-from .llm_connector import get_chat_completion, get_llm_completion
+from .llm_connector import _execute_llm_request, get_llm_completion
+from .services import refresh_and_cache_models
 
 # 2. Constantes et Configuration
 logger = get_task_logger(__name__)
+
 
 AVAILABLE_TOOLS = [
     {
@@ -37,13 +42,26 @@ AVAILABLE_TOOLS = [
                     "description": "La requête de recherche à envoyer sur le web."
                 }
             },
+    "required": ["query"]
+    }},
+    {
+    "name": "read_webpage",
+    "description": "Permet de lire et d'extraire le contenu textuel principal d'une page web à partir de son URL. Utile pour obtenir des détails, résumer un article, ou analyser le contenu d'un lien spécifique.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "url": {
+                "type": "string",
+                "description": "L'URL complète de la page web à lire."
+            }
+        },
             "required": ["query"]
         }
     }
 ]
 
 # 3. Fonctions de logique métier (Helpers)
-def get_llm_decision(user_question):
+def get_llm_decision(user_question: str, model_name: str):
     """
     Appelle le LLM pour déterminer si une question nécessite un outil ou une réponse directe.
     """
@@ -51,22 +69,28 @@ def get_llm_decision(user_question):
 
     system_prompt = f"""
 Vous êtes un orchestrateur intelligent. Votre tâche est d'analyser la question de l'utilisateur et de décider de la meilleure action.
-Actions possibles : `call_tool` ou `respond`.
+Actions possibles : `call_tool` ou `respond_directly`.
 
 Outils disponibles :
 {json.dumps(AVAILABLE_TOOLS, indent=2)}
 
 Répondez avec un objet JSON structuré comme suit :
 - Pour un outil : {{"action": "call_tool", "tool_name": "search_web", "parameters": {{"query": "requête de recherche"}}}}
-- Pour une réponse directe : {{"action": "respond", "message": "Votre réponse directe ici."}}
+- Pour une réponse directe : {{"action": "respond_directly"}}
 """
     
     full_prompt = f"{system_prompt}\n\nQuestion utilisateur : \"{user_question}\"\n\nVotre réponse JSON :"
 
     try:
         # On appelle le LLM en mode JSON pour garantir une sortie structurée
-        llm_response_str = get_llm_completion(full_prompt, json_mode=True)
-        decision = json.loads(llm_response_str)
+        llm_response = get_llm_completion(full_prompt, model_name=model_name, json_mode=True)
+        
+        if isinstance(llm_response, str):
+            decision = json.loads(llm_response)
+        elif isinstance(llm_response, dict):
+            decision = llm_response
+        else:
+            raise TypeError(f"Type de réponse inattendu du LLM : {type(llm_response)}")
         logger.info(f"Décision du LLM reçue : {decision}")
         return decision
     except Exception as e:
@@ -74,50 +98,117 @@ Répondez avec un objet JSON structuré comme suit :
         # Réponse de secours en cas d'erreur
         return {"action": "respond", "message": "Je rencontre une difficulté pour traiter votre demande."}
 
+def _format_results_as_context(results: List[Dict[str, Any]]) -> str:
+    """Formate une liste de résultats de recherche en une chaîne de contexte pour le LLM."""
+    context = ""
+    # Limiter aux 5 premiers résultats pour ne pas surcharger le contexte
+    for result in results[:5]:
+        context += f"Titre: {result.get('title', 'N/A')}\n"
+        context += f"URL: {result.get('url', 'N/A')}\n"
+        context += f"Extrait: {result.get('content', 'N/A')}\n---\n"
+    return context
+
 # 4. Tâches Celery
+@celery.task(name="app.tasks.refresh_models_cache_task")
+def refresh_models_cache_task():
+    """
+    Tâche Celery périodique pour rafraîchir le cache des modèles.
+    """
+    logger.info("Lancement de la tâche de rafraîchissement du cache des modèles.")
+    try:
+        refresh_and_cache_models()
+        logger.info("Tâche de rafraîchissement du cache des modèles terminée avec succès.")
+    except Exception as e:
+        logger.error(f"Erreur lors de la tâche de rafraîchissement du cache des modèles: {e}", exc_info=True)
+
 @celery.task(bind=True)
-def orchestrator_task(self, user_question, sid):
+def orchestrator_task(self, messages: List[Dict[str, Any]], sid: str, model_name: str):
     """
     Tâche Celery qui orchestre la décision de l'IA et lance le flux de travail approprié.
     Le résultat de cette tâche est la réponse finale, la rendant compatible avec le polling HTTP.
     """
-    logger.info(f"Démarrage pour SID {sid} avec la question: '{user_question}'")
-    decision = get_llm_decision(user_question)
+    # Extraire la question la plus récente de l'historique des messages pour la prise de décision.
+    user_question = ""
+    if messages and isinstance(messages, list) and messages[-1].get("role") == "user":
+        # Note: Pour l'instant, on suppose que le contenu est une chaîne simple.
+        user_question = messages[-1].get("content", "")
+
+    if not user_question or not isinstance(user_question, str):
+        logger.error(f"Impossible d'extraire une question utilisateur valide des messages pour SID {sid}.")
+        return "Erreur: Le dernier message doit être de l'utilisateur et contenir du texte."
+
+    logger.info(f"Démarrage de l'orchestrateur pour SID {sid} avec la question: '{user_question}'")
+    decision = get_llm_decision(user_question, model_name)
     logger.info(f"Décision IA pour SID {sid} : {decision}")
+
+    tool_results = None
+    synthesis_messages = copy.deepcopy(messages)
 
     if decision.get('action') == 'call_tool':
         tool_name = decision.get("tool_name")
         if tool_name == "search_web":
-            query = decision.get("parameters", {}).get("query")
-            if query:
-                logger.info(f"Création et exécution d'une chaîne de tâches pour SID {sid}: search_web -> synthesis")
-                workflow = chain(
-                    search_web_task.s(query=query),
-                    synthesis_task.s(original_question=user_question, sid=sid)
-                )
-                # Exécute la chaîne et attend le résultat. Cela bloque ce worker, ce qui est
-                # le comportement attendu pour que cette tâche contienne le résultat final.
-                result = workflow.apply_async()
-                final_answer = result.get(propagate=True) # propagate=True relance les exceptions des sous-tâches
+            query = decision.get("parameters", {}).get("query", "")
+            logger.info(f"Orchestrateur : appel de 'search_web' avec la requête '{query}'")
+            search_results = search_web_task(query=query) # Ceci retourne maintenant une liste de dicts
+
+            if isinstance(search_results, list) and search_results:
+                # On a des résultats, on va lire le premier.
+                top_result_url = search_results[0].get('url')
+                logger.info(f"Orchestrateur : appel de 'read_webpage' sur le premier résultat : {top_result_url}")
+                scraped_content = read_webpage_task(url=top_result_url)
+
+                # On construit le contexte final pour la synthèse
+                final_context = f"Contenu détaillé de la page principale ({top_result_url}):\n{scraped_content}\n\n"
+                final_context += "--- AUTRES RÉSULTATS DE RECHERCHE ---\n"
+                # On ajoute les 4 suivants avec leurs extraits
+                final_context += _format_results_as_context(search_results[1:5])
+                tool_results = final_context
             else:
-                logger.error(f"Paramètre 'query' manquant pour l'outil 'search_web' pour SID {sid}")
-                final_answer = "Erreur interne : le paramètre de recherche est manquant."
+                tool_results = "La recherche n'a retourné aucun résultat."
+
+        elif tool_name == "read_webpage":
+            url = decision.get("parameters", {}).get("url", "")
+            logger.info(f"Orchestrateur : appel direct de 'read_webpage' sur l'URL : {url}")
+            tool_results = read_webpage_task(url=url)
         else:
             logger.warning(f"Outil non reconnu '{tool_name}' demandé pour SID {sid}")
-            final_answer = f"Erreur interne : l'outil '{tool_name}' n'est pas reconnu."
-    else:
-        # L'action est 'respond' ou une erreur de décision.
-        # On envoie la réponse directement sans passer par la tâche de synthèse.
-        final_answer = decision.get('message', "Je ne suis pas sûr de savoir comment répondre. Pourriez-vous reformuler ?")
-        logger.info(f"Envoi de la réponse directe au client SID {sid}")
-        
-        # Pour les clients WebSocket, on envoie quand même la réponse via le socket
-        # pour une expérience en temps réel. Le `return` est pour le polling HTTP.
-        socketio.emit('task_result', {'status': 'final_answer', 'message': final_answer}, room=sid)
+            tool_results = f"Erreur: L'outil '{tool_name}' n'est pas reconnu."
+
+    # --- Étape de Synthèse Finale ---
+    logger.info(f"Début de la synthèse finale pour SID {sid}.")
+
+    # Préparer les messages pour le LLM de synthèse en injectant le contexte si nécessaire
+    if tool_results:
+        # Si un outil a été utilisé, on injecte les résultats dans un prompt système.
+        system_prompt = f"""Vous êtes un assistant de synthèse. Utilisez les informations de recherche suivantes pour répondre à la dernière question de l'utilisateur.
+Citez vos sources en utilisant les URL fournies pour chaque information que vous utilisez, en format Markdown comme ceci : [Texte du lien](URL).
+Ne mentionnez que les liens pertinents pour la réponse.
+
+Informations de recherche:\n---\n{tool_results}\n---"""
+        if synthesis_messages and synthesis_messages[0].get("role") == "system":
+            synthesis_messages[0]["content"] = system_prompt
+        else:
+            synthesis_messages.insert(0, {"role": "system", "content": system_prompt})
+    elif not synthesis_messages or synthesis_messages[0].get("role") != "system":
+        # Si aucune information d'outil n'est présente, on s'assure qu'un prompt système générique existe.
+        system_prompt = "Vous êtes un assistant IA généraliste et serviable."
+        synthesis_messages.insert(0, {"role": "system", "content": system_prompt})
 
     # La valeur retournée ici est le résultat de la tâche Celery,
     # qui sera récupéré par l'endpoint de polling HTTP.
-    return final_answer
+    try:
+        logger.info(f"Appel final au LLM pour synthèse pour SID {sid}.")
+        response_obj = _execute_llm_request(
+            model_name=model_name,
+            messages=synthesis_messages,
+            stream=False
+        )
+        final_answer = response_obj.choices[0].message.content
+        logger.info(f"Réponse finale synthétisée pour SID {sid}: '{final_answer[:100]}...'")
+        return final_answer
+    except Exception as e:
+        logger.error(f"Échec de la synthèse finale pour SID {sid}: {e}", exc_info=True)
+        return "Désolé, une erreur est survenue lors de la génération de la réponse finale."
 
 @celery.task(bind=True)
 def search_web_task(self, query):
@@ -125,11 +216,11 @@ def search_web_task(self, query):
     Effectue une recherche web pour la requête donnée et retourne les résultats
     sous forme d'une chaîne de caractères formatée pour un LLM.
 
-    Args:
-        query (str): La requête de recherche à envoyer sur le web.
+Args:
+    query (str): La requête de recherche à envoyer sur le web.
 
-    Returns:
-        str: Une chaîne de caractères contenant les résultats ou un message d'erreur.
+Returns:
+    list: Une liste de dictionnaires contenant les résultats, ou une liste vide.
     """
     logger.info(f"Début de la recherche pour : '{query}'")
     searxng_url = current_app.config.get('SEARXNG_BASE_URL')
@@ -137,87 +228,109 @@ def search_web_task(self, query):
     if not searxng_url:
         error_message = "L'URL de SearXNG n'est pas configurée (SEARXNG_BASE_URL)."
         logger.error(error_message)
-        return error_message
+        return []
     
     try:
         search_url = f"{searxng_url}/search?q={query}&format=json"
         response = requests.get(search_url, timeout=10)
         response.raise_for_status()  # Lève une exception pour les erreurs HTTP
 
-        search_data = response.json()
-        results = search_data.get("results", [])
-
-        if not results:
-            logger.warning("Aucun résultat trouvé.")
-            return "Aucun résultat trouvé pour la recherche."
-
-        # Formater les 5 premiers résultats pour le LLM
-        context = ""
-        for result in results[:5]:
-            context += f"Titre: {result.get('title', 'N/A')}\n"
-            context += f"Extrait: {result.get('content', 'N/A')}\n---\n"
-        
-        logger.info(f"Recherche terminée avec succès pour '{query}'.")
-        return context
+        return response.json().get("results", [])
 
     except requests.exceptions.RequestException as e:
         error_message = f"Erreur de connexion à SearXNG : {e}"
         logger.error(f"{error_message}")
-        return error_message
+        return []
     except json.JSONDecodeError as e:
         error_message = f"Erreur de décodage de la réponse JSON de SearXNG : {e}"
         logger.error(f"{error_message}")
+        return []
+
+@celery.task(bind=True)
+def read_webpage_task(self, url: str) -> str:
+    """
+    Scrape le contenu textuel d'une page web à partir de son URL.
+
+    Args:
+        url (str): L'URL de la page à lire.
+
+    Returns:
+        str: Le contenu textuel nettoyé de la page, ou un message d'erreur.
+    """
+    if not url or not url.startswith(('http://', 'https://')):
+        return f"Erreur: URL invalide fournie : '{url}'"
+
+    logger.info(f"Début du scraping pour l'URL : {url}")
+    try:
+        headers = {'User-Agent': 'Harpou-AI-Gateway-Scraper/1.0'}
+        page_response = requests.get(url, timeout=15, headers=headers)
+        page_response.raise_for_status()
+
+        # Utiliser BeautifulSoup pour parser le HTML et extraire le texte
+        soup = BeautifulSoup(page_response.content, 'html.parser')
+
+        # Supprimer les balises de script et de style qui n'apportent pas de contexte
+        for script_or_style in soup(["script", "style", "nav", "footer", "header", "aside"]):
+            script_or_style.decompose()
+
+        # Obtenir le texte et le nettoyer pour une meilleure lisibilité
+        text = soup.get_text()
+        lines = (line.strip() for line in text.splitlines())
+        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+        full_text = '\n'.join(chunk for chunk in chunks if chunk)
+
+        # Limiter la taille pour ne pas surcharger le contexte du LLM (8000 caractères)
+        scraped_content = full_text[:8000]
+        logger.info(f"Scraping de {url} terminé avec succès.")
+        return scraped_content
+
+    except requests.exceptions.RequestException as e:
+        error_message = f"Erreur lors de la lecture de l'URL {url}: {e}"
+        logger.error(error_message)
         return error_message
 
 @celery.task(bind=True)
-def synthesis_task(self, task_results, original_question, sid):
+def synthesis_task(self, task_results: Optional[str], messages: List[Dict[str, Any]], sid: str, model_name: str):
     """
     Tâche Celery qui utilise le LLM pour synthétiser une réponse finale et la notifie au client,
     avec un streaming jeton par jeton.
+    Gère deux cas : la synthèse à partir de résultats d'outils et la réponse directe,
+    tout en préservant l'historique de la conversation.
     """
-    logger.info(f"Démarrage de la synthèse en streaming pour SID {sid} avec la question '{original_question}'")
+    logger.info(f"Démarrage de la synthèse en streaming pour SID {sid}.")
 
-    # 1. Préparer les messages pour le LLM au format chat
-    system_prompt = "Vous êtes un assistant de synthèse. Votre rôle est de fournir une réponse concise et utile à la question de l'utilisateur en vous basant sur les informations de recherche fournies."
-    user_prompt = f"""
-Informations de recherche :
----
-{task_results}
----
-À partir de ces informations, répondez à la question suivante : "{original_question}"
-"""
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt}
-    ]
+    # On travaille sur une copie pour ne pas modifier l'historique original
+    final_llm_messages = copy.deepcopy(messages)
+
+    # 1. Préparer les messages pour le LLM en injectant le contexte si nécessaire
+    if task_results:
+        # Cas 1: Un outil a été utilisé. On injecte les résultats dans un prompt système.
+        system_prompt = f"""Vous êtes un assistant de synthèse. Utilisez les informations de recherche suivantes pour répondre à la dernière question de l'utilisateur dans le contexte de la conversation.
+\nInformations de recherche:\n---\n{task_results}\n---"""
+        
+        # Remplacer ou insérer le prompt système
+        if final_llm_messages and final_llm_messages[0].get("role") == "system":
+            final_llm_messages[0]["content"] = system_prompt
+        else:
+            final_llm_messages.insert(0, {"role": "system", "content": system_prompt})
+    else:
+        # Cas 2: Réponse directe. On s'assure qu'un prompt système générique existe.
+        logger.info(f"Synthèse en mode réponse directe pour SID {sid}.")
+        if not final_llm_messages or final_llm_messages[0].get("role") != "system":
+            system_prompt = "Vous êtes un assistant IA généraliste et serviable."
+            final_llm_messages.insert(0, {"role": "system", "content": system_prompt})
 
     final_answer_parts = []
     try:
-        # 2. Déterminer le modèle à utiliser
-        primary_backend_name = current_app.config.get('primary_backend_name')
-        if not primary_backend_name:
-            raise ValueError("Aucun backend LLM primaire n'est configuré.")
-
-        backends = current_app.config.get('llm_backends', [])
-        backend_config = next((b for b in backends if b.get('name') == primary_backend_name), None)
-
-        if not backend_config:
-            raise ValueError(f"Configuration du backend primaire '{primary_backend_name}' non trouvée.")
-
-        model_name = backend_config.get('default_model')
-        if not model_name:
-            raise ValueError(f"Aucun modèle par défaut configuré pour le backend '{primary_backend_name}'.")
-
-        # 3. Appeler get_chat_completion en mode streaming
-        logger.info(f"Appel de get_chat_completion en mode stream avec le modèle '{model_name}'.")
-        stream = get_chat_completion(
+        # 2. Appeler _execute_llm_request en mode streaming avec le modèle spécifié
+        logger.info(f"Appel de _execute_llm_request en mode stream avec le modèle '{model_name}'.")
+        stream = _execute_llm_request(
             model_name=model_name,
-            messages=messages,
+            messages=final_llm_messages, # Utiliser les messages préparés
             stream=True, # Activer le streaming
-            backend_name=primary_backend_name
         )
         
-        # 4. Itérer sur le flux et envoyer les jetons via WebSocket
+        # 3. Itérer sur le flux et envoyer les jetons via WebSocket
         for chunk in stream:
             token = chunk.choices[0].delta.content if chunk.choices and chunk.choices[0].delta else None
             if token:
@@ -230,84 +343,15 @@ Informations de recherche :
         
         logger.info(f"Réponse finale streamée générée par le LLM pour SID {sid}: '{final_answer[:100]}...'")
         
-        # 5. Envoyer un message final pour indiquer la fin du flux
+        # 4. Envoyer un message final pour indiquer la fin du flux
         socketio.emit('task_result', {'status': 'final_answer', 'message': final_answer}, room=sid)
 
     except Exception as e:
         logger.error(f"Échec de la synthèse par le LLM en streaming : {e}", exc_info=True)
-        final_answer = f"J'ai trouvé des informations, mais j'ai eu du mal à les résumer. Voici les données brutes : {task_results}"
-        socketio.emit('task_result', {'status': 'error', 'message': final_answer}, room=sid)
-    
+        error_msg = f"J'ai eu une difficulté à formuler une réponse. Erreur: {e}"
+        if task_results:
+             error_msg = f"J'ai trouvé des informations, mais j'ai eu du mal à les résumer. Voici les données brutes : {task_results}"
+        socketio.emit('task_result', {'status': 'error', 'message': error_msg}, room=sid)
+        # On retourne le message d'erreur pour que la tâche parente (orchestrator) le reçoive.
+        return error_msg
     return final_answer
-
-def chat_completions():
-   payload = request.json
-   
-   # Récupérer le model_name depuis le payload
-   model_name = payload.get('model')
-   
-   if not model_name:
-       return jsonify({"error": {"message": "Le paramètre 'model' est requis.", "type": "invalid_request_error"}}), 400
-   
-   # Vérifier si le model_name commence par "harpou-agent/" pour l'asynchrone
-   if model_name.startswith("harpou-agent/"):
-       user_question = payload['prompt']
-       task_id = str(uuid.uuid4())
-       
-       # Lancer la tâche asynchrone avec le model_name comme identifiant unique
-       task = current_app.task_queue.apply_async((user_question, model_name), task_id=task_id)
-       
-       return jsonify({
-           "id": task_id,
-           "status": "accepted",
-           "message": "Tâche agentique lancée.",
-           "task_id": task.id
-       }), 202
-   
-   else:
-       # Cas où le model_name ne commence pas par "harpou-agent/" (flux synchrone/streaming direct)
-       stream = payload.get('stream', False)
-       
-       # Déterminer le modèle à utiliser en fonction de la configuration du Gateway
-       default_model = current_app.config.get('DEFAULT_LLM_MODEL', 'harpou-ai-gateway')
-       model_name = model_name if model_name else default_model
-       
-       if stream:
-           # Gérer le streaming HTTP direct
-           def generate():
-               response = get_chat_completion(stream=True, model=model_name)
-               for chunk in response:
-                   content = chunk.choices[0].delta.get('content', '')
-                   event = {
-                       "id": f"chatcmpl-{uuid.uuid4()}",
-                       "object": "chat.completion.chunk",
-                       "created": int(time.time()),
-                       "model": model_name,
-                       "choices": [{
-                           "index": 0,
-                           "delta": {"content": content},
-                           "finish_reason": None if chunk.choices[0].delta else "stop"
-                       }]
-                   }
-                   yield f"data: {jsonify(event).get_data().decode()}\n\n"
-               yield "data: [DONE]\n\n"
-           
-           return Response(generate(), mimetype='text/event-stream')
-       
-       else:
-           # Gérer la réponse JSON complète
-           response = get_chat_completion(stream=False, model=model_name)
-           content = response.choices[0].message.content
-           
-           final_response = {
-               "id": f"chatcmpl-{uuid.uuid4()}",
-               "object": "chat.completion",
-               "created": int(time.time()),
-               "model": model_name,
-               "choices": [{
-                   "index": 0,
-                   "message": {"role": "assistant", "content": content},
-                   "finish_reason": None
-               }],
-               # Les champs usage peuvent être simulés ou laissés vides si non disponibles
-           }

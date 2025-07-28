@@ -6,16 +6,17 @@ authors = [
     {name = "Harpou", email = "contact@harpou.com"},
 ]
 dependencies = [
-    "flask>=3.0.0",
-    "flask-socketio>=5.3.6",
-    "celery>=5.3.6",
-    "redis>=5.0.1",
-    "python-dotenv>=1.0.0",
-    "eventlet>=0.33.3", # Nécessaire pour le serveur de développement SocketIO
-    "flask-cors>=3.0.0",
-    "requests>=2.20",
-    "openai>=1.97.0",
+    "flask~=3.1",
+    "flask-socketio~=5.5",
+    "celery[redis]~=5.5",
+    "python-dotenv~=1.1",
+    "eventlet~=0.40",
+    "flask-cors~=6.0",
+    "requests~=2.32",
+    "openai~=1.97",
     "flask-limiter>=3.12",
+    "beautifulsoup4~=4.12",
+    "lxml~=5.2",
 ]
 requires-python = ">=3.11"
 readme = "README.md"
@@ -31,5 +32,6 @@ prod = [
 distribution = false
 
 [tool.pdm.scripts]
-start = "pdm run python run.py"
-worker = "python worker_launcher.py -A celery_worker.celery worker --loglevel=info"
+start = "python run.py" # Pour le serveur web, utilise le bon monkey-patching
+worker = "celery -A celery_worker.celery worker --loglevel=info"
+beat = "celery -A celery_worker.celery beat --loglevel=info --schedule=/app/logs/celerybeat-schedule"

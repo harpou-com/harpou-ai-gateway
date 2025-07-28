@@ -5,7 +5,7 @@
             "type": "ollama",
             "base_url": "http://localhost:11434",
             "default_model": "llama3",
-            "api_key": null,
+            "api_key": "NA",
             "llm_auto_load": true
         },
         {
@@ -21,7 +21,7 @@
             "type": "openai",
             "base_url": "http://localhost:1234/v1",
             "default_model": "lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF",
-            "api_key": null,
+            "api_key": "NA",
             "llm_auto_load": true
         }
     ],
@@ -33,6 +33,7 @@
     "CELERY_RESULT_BACKEND": "redis://localhost:6379/0",
     "LOG_LEVEL": "info",
     "LOG_ROTATION_DAYS": 7,
+    "llm_cache_update_interval_minutes": 5,
     "api_keys": [
         {
             "key": "sk-my-first-key-for-user1",

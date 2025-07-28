@@ -151,6 +151,8 @@ def create_app(config_object=None, init_socketio=True):
         'HIGH_AVAILABILITY_STRATEGY': 'high_availability_strategy',
         'RATELIMIT_DEFAULT': 'RATELIMIT_DEFAULT',
         'RATELIMIT_STORAGE_URI': 'RATELIMIT_STORAGE_URI',
+        'LLM_CACHE_MIN_UPDATE': 'llm_cache_update_interval_minutes',
+        'LLM_BACKEND_TIMEOUT': 'LLM_BACKEND_TIMEOUT',
     }
 
     for env_key, config_key in env_to_config_map.items():
@@ -165,16 +167,21 @@ def create_app(config_object=None, init_socketio=True):
     
     # Scénario 3: Surcharge de la configuration des clés API
     # Priorité 1: Clé unique simple via API_KEY
-    if api_key := os.environ.get('API_KEY'):
+    if api_key_value := os.environ.get('API_KEY'):
         app.logger.info("Mode de configuration 'clé API unique' détecté via la variable d'environnement 'API_KEY'.")
+
+        # Vérifier si la variable contient un chemin de fichier (comme un secret Docker)
+        if os.path.exists(api_key_value):
+            app.logger.info(f" -> La variable API_KEY pointe vers un fichier. Lecture de '{api_key_value}'.")
+            with open(api_key_value) as key_file:
+                api_key_value = key_file.read().strip()
+        else:
+            app.logger.info(" -> La variable API_KEY est utilisée directement comme clé.")
+
         rate_limit = os.environ.get('API_KEY_RATE_LIMIT', '100/hour')
         app.logger.info(f" -> Clé unique configurée avec un rate_limit de '{rate_limit}'.")
         config['api_keys'] = [
-            {
-                "key": api_key,
-                "owner": "default_user",
-                "rate_limit": rate_limit
-            }
+            {"key": api_key_value, "owner": "default_user", "rate_limit": rate_limit}
         ]
     # Priorité 2: Configuration multi-clés via API_KEYS_JSON
     elif api_keys_json_str := os.environ.get('API_KEYS_JSON'):
@@ -254,6 +261,19 @@ def create_app(config_object=None, init_socketio=True):
     # Initialiser Celery
     init_celery(app)
 
+    # --- Remplissage initial du cache des modèles ---
+    with app.app_context():
+        # Ceci est fait au démarrage pour s'assurer que la liste des modèles est
+        # disponible immédiatement, sans attendre la première exécution de la tâche périodique.
+        # Note : Cela peut ralentir légèrement le démarrage de l'application.
+        from .services import refresh_and_cache_models
+        app.logger.info("Lancement du premier rafraîchissement du cache des modèles au démarrage...")
+        try:
+            refresh_and_cache_models()
+            app.logger.info("Premier rafraîchissement du cache terminé.")
+        except Exception as e:
+            app.logger.error(f"Échec du premier rafraîchissement du cache des modèles : {e}", exc_info=True)
+
     # Initialiser SocketIO (uniquement pour le serveur web)
     if init_socketio:
         # La configuration (message_queue, etc.) est lue depuis app.config
@@ -276,6 +296,18 @@ def init_celery(app: Flask):
     """Initialise et configure l'instance Celery avec le contexte Flask."""
     # Celery utilise directement les clés de app.config comme 'broker_url'
     celery.conf.update(app.config)
+
+    # --- Configuration de Celery Beat pour les tâches périodiques ---
+    update_interval_minutes = int(app.config.get('llm_cache_update_interval_minutes', 5))
+    app.logger.info(f"Configuration de la tâche de rafraîchissement du cache des modèles toutes les {update_interval_minutes} minutes.")
+    
+    celery.conf.beat_schedule = {
+        'refresh-models-every-x-minutes': {
+            'task': 'app.tasks.refresh_models_cache_task',
+            'schedule': update_interval_minutes * 60.0,  # en secondes
+        },
+    }
+    # --- Fin de la configuration de Celery Beat ---
 
     class ContextTask(celery.Task):
         def __call__(self, *args, **kwargs):

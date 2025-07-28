@@ -12,7 +12,8 @@ from celery.result import AsyncResult
 from celery.utils.log import get_task_logger
 from .extensions import socketio, limiter, celery
 from .tasks import orchestrator_task
-from .llm_connector import get_chat_completion, list_models_from_backend
+from .llm_connector import _execute_llm_request
+from .cache import get_models
 from .auth import require_api_key
 
 # 2. Constantes et Configuration
@@ -54,38 +55,14 @@ def chat():
 def list_models():
     """
     Découverte des modèles. Retourne une liste de tous les modèles disponibles
-    agrégés depuis les backends configurés, au format compatible OpenAI.
+    depuis le cache, au format compatible OpenAI.
+    Le cache est rafraîchi périodiquement par une tâche de fond.
     """
-    llm_backends = current_app.config.get('llm_backends', [])
-    exposed_models = []
-
-    for backend in llm_backends:
-        backend_name = backend.get('name')
-        if not backend_name:
-            current_app.logger.warning("Un backend sans nom a été trouvé dans la configuration, il sera ignoré.")
-            continue
-
-        if backend.get('llm_auto_load'):
-            current_app.logger.info(f"Découverte automatique des modèles pour le backend '{backend_name}'.")
-            backend_models = list_models_from_backend(backend)
-            for model in backend_models:
-                # Convertir l'objet Pydantic en dictionnaire pour la manipulation
-                model_dict = model.model_dump()
-                # Préfixer l'ID pour éviter les conflits et indiquer la provenance
-                model_dict['id'] = f"{backend_name}/{model.id}"
-                exposed_models.append(model_dict)
-        else:
-            # Si l'auto-découverte est désactivée, exposer le backend comme un modèle unique
-            current_app.logger.info(f"Exposition manuelle du backend '{backend_name}' comme un modèle unique.")
-            exposed_models.append({
-                "id": backend_name,
-                "object": "model",
-                "created": int(time.time()),
-                "owned_by": "gateway"
-            })
+    cached_models = get_models()
+    current_app.logger.info(f"Service de la liste des modèles depuis le cache ({len(cached_models)} modèles).")
 
     # Formater la réponse finale pour être compatible avec l'API OpenAI
-    return jsonify({"object": "list", "data": exposed_models})
+    return jsonify({"object": "list", "data": cached_models})
 
 @bp.route('/v1/chat/completions', methods=['POST'])
 @require_api_key
@@ -142,7 +119,11 @@ def chat_completions():
             return jsonify({"error": {"message": "L'en-tête 'X-SID' est requis pour les requêtes agentiques.", "type": "invalid_request_error"}}), 400
         current_app.logger.info(f"Lancement d'une requête agentique pour le modèle '{model_name}' avec SID '{sid}'.")
 
-        task = orchestrator_task.delay(user_question, sid)
+        # Retirer le préfixe de l'agent pour obtenir le vrai nom du modèle
+        agent_prefix = current_app.config.get("AGENT_MODEL_PREFIX", "harpou-agent/")
+        actual_model_name = model_name.replace(agent_prefix, "", 1)
+
+        task = orchestrator_task.delay(messages=messages, sid=sid, model_name=actual_model_name)
 
         # Retourner une réponse HTTP 202 Accepted formatée comme une réponse OpenAI
         response_payload = {
@@ -161,38 +142,16 @@ def chat_completions():
         # SINON (modèle standard, flux synchrone/streaming direct)
         stream = payload.get('stream', False)
 
-        # --- Logique de routage vers le backend LLM ---
-        backends = current_app.config.get('llm_backends', [])
-        primary_backend_name = current_app.config.get('primary_backend_name')
-        
-        backend_to_use = None
-        model_to_use = None
+        # --- Logique de routage (SIMPLIFIÉE) ---
+        # La logique de routage est maintenant entièrement gérée par get_chat_completion.
+        # On passe simplement le nom du modèle tel que reçu. Si model_name est None,
+        # get_chat_completion utilisera le backend primaire par défaut.
+        # model_to_use = model_name
 
-        if model_name and '/' in model_name:
-            # Format "backend/model" -> routage explicite
-            backend_name_part, model_id_part = model_name.split('/', 1)
-            if any(b.get('name') == backend_name_part for b in backends):
-                backend_to_use = backend_name_part
-                model_to_use = model_id_part
-        elif model_name:
-            # Le nom de modèle pourrait être un nom de backend (pour llm_auto_load: false)
-            backend_config = next((b for b in backends if b.get('name') == model_name), None)
-            if backend_config:
-                backend_to_use = backend_config.get('name')
-                model_to_use = backend_config.get('default_model')
-            else:
-                # Sinon, on suppose que c'est un modèle sur le backend primaire
-                backend_to_use = primary_backend_name
-                model_to_use = model_name
-        else:
-            # Si aucun modèle n'est spécifié, utiliser le backend primaire et son modèle par défaut
-            backend_to_use = primary_backend_name
-            backend_config = next((b for b in backends if b.get('name') == primary_backend_name), None)
-            if backend_config:
-                model_to_use = backend_config.get('default_model')
-
-        if not backend_to_use or not model_to_use:
-            return jsonify({"error": {"message": "Impossible de déterminer le modèle ou le backend à utiliser. Vérifiez le nom du modèle et la configuration du gateway.", "type": "invalid_request_error"}}), 400
+        # Si aucun modèle n'est spécifié par le client, on doit lever une erreur claire
+        # car la spec OpenAI requiert un nom de modèle.
+        if not model_name:
+            return jsonify({"error": {"message": "Le champ 'model' est requis dans le corps de la requête.", "type": "invalid_request_error"}}), 400
 
         if stream:
             # SI stream est true :
@@ -204,9 +163,8 @@ def chat_completions():
                 status_code = 200
 
                 try:
-                    response_stream = get_chat_completion(
-                        model_name=model_to_use, messages=messages,
-                        stream=True, backend_name=backend_to_use,
+                    response_stream = _execute_llm_request(
+                        model_name=model_name, messages=messages, stream=True,
                         tools=tools, tool_choice=tool_choice
                     )
                     for chunk in response_stream:
@@ -234,7 +192,7 @@ def chat_completions():
                         final_response_for_log = {
                             "id": f"chatcmpl-stream-{request_id}",
                             "object": "chat.completion",
-                            "model": model_to_use,
+                            "model": model_name,
                             "choices": [{
                                 "index": 0,
                                 "message": {"role": "assistant", "content": final_content},
@@ -252,10 +210,26 @@ def chat_completions():
             return Response(stream_with_context(generate_stream_response()), mimetype='text/event-stream')
         else:
             # SINON (stream est false ou absent, réponse JSON complète)
+            # C'est ici que nous lançons la tâche agentique et retournons un ID de tâche.
+            
+            # Générer un SID si aucun n'est fourni (pour les clients non-websocket)
+            if not sid:
+                sid = str(uuid.uuid4())
+                current_app.logger.info(f"Génération d'un SID ({sid}) pour une requête API synchrone.")
+
+            task = orchestrator_task.delay(messages=messages, sid=sid, model_name=model_name)
+
+            # On retourne une réponse qui indique que la tâche est acceptée et fournit un moyen de la suivre.
+            return jsonify({
+                "task_id": task.id,
+                "status_endpoint": f"/v1/tasks/status/{task.id}",
+                "message": "La tâche a été acceptée et est en cours de traitement. Veuillez sonder l'endpoint de statut pour le résultat."
+            }), 202
+            
+            """
             try:
-                response_obj = get_chat_completion(
-                    model_name=model_to_use, messages=messages,
-                    stream=False, backend_name=backend_to_use,
+                response_obj = _execute_llm_request(
+                    model_name=model_name, messages=messages, stream=False,
                     tools=tools, tool_choice=tool_choice
                 )
                 # Le connecteur retourne un objet Pydantic compatible OpenAI.
@@ -280,6 +254,7 @@ def chat_completions():
                     "status_code": 500
                 }))
                 return jsonify(error_response), 500
+            """
 
 @bp.route('/v1/tasks/status/<task_id>', methods=['GET'])
 @require_api_key
