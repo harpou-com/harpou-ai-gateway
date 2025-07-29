@@ -46,8 +46,8 @@ RUN pdm config python.use_venv true && \
 # Le répertoire 'app' contient maintenant 'app/tasks.py'
 COPY app ./app
 COPY celery_worker.py worker_launcher.py ./
-# La ligne suivante a été supprimée car le répertoire 'tasks' n'est plus nécessaire :
-# COPY tasks ./tasks # Assurez-vous que le répertoire 'tasks' est copié si vos tâches Celery y sont définies
+# NOUVELLE LIGNE : Copie le lanceur de Beat 
+COPY beat_launcher.py ./ 
 
 # Configurer les variables d'environnement pour l'utilisateur non-root
 # Le PATH doit inclure le répertoire bin du venv PDM
@@ -79,6 +79,5 @@ RUN echo "--- Débogage de l'environnement PDM ---" && \
     echo "--- Fin du débogage ---"
 
 # Commande par défaut pour démarrer Celery Beat
-# Utilise 'pdm run' qui est la méthode recommandée pour exécuter les scripts gérés par PDM.
-# PDM se chargera de trouver l'exécutable 'celery' dans son environnement.
-CMD ["pdm", "run", "celery", "-A", "celery_worker", "beat", "-l", "info", "--scheduler", "celery.beat.PersistentScheduler"]
+# Utilise le nouveau lanceur beat_launcher.py avec les arguments spécifiques.
+CMD ["pdm", "run", "python", "beat_launcher.py", "-A", "celery_worker.celery", "beat", "--loglevel=INFO", "--pidfile=", "--schedule=/app/logs/celerybeat-schedule"]

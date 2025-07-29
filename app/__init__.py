@@ -5,7 +5,7 @@ import logging
 from logging.handlers import TimedRotatingFileHandler
 from flask import Flask
 from dotenv import load_dotenv
-from .extensions import celery, socketio, limiter, flask_cache
+from .extensions import socketio, limiter, flask_cache
 from flask_cors import CORS
 
 # Charger les variables d'environnement, sauf en mode test pour éviter les I/O bloquantes sur le filesystem.
@@ -278,9 +278,6 @@ def create_app(config_object=None, init_socketio=True):
     # Les limites sont lues depuis la configuration de l'application (ex: RATELIMIT_DEFAULT)
     limiter.init_app(app)
 
-    # Initialiser Celery
-    init_celery(app)
-
     # Initialiser SocketIO (uniquement pour le serveur web)
     if init_socketio:
         # La configuration (message_queue, etc.) est lue depuis app.config
@@ -298,43 +295,3 @@ def create_app(config_object=None, init_socketio=True):
         from . import events  # noqa: F401 (force l'import pour enregistrer les handlers)
 
     return app
-
-def init_celery(app: Flask):
-    """Initialise et configure l'instance Celery avec le contexte Flask."""
-    from celery.signals import beat_init
-    # Celery utilise directement les clés de app.config comme 'broker_url'
-    # On définit le nom de l'application principale pour Celery.
-    # C'est la manière correcte de l'intégrer avec le patron "Application Factory".
-    celery.main = app.import_name
-    celery.conf.update(app.config)
-
-    # --- Configuration de Celery Beat pour les tâches périodiques ---
-    update_interval_minutes = int(app.config.get('llm_cache_update_interval_minutes', 5))
-    app.logger.info(f"Configuration de la tâche de rafraîchissement du cache des modèles toutes les {update_interval_minutes} minutes.")
-    
-    celery.conf.beat_schedule = {
-        'refresh-models-every-x-minutes': {
-            'task': 'app.tasks.refresh_models_cache_task',
-            'schedule': update_interval_minutes * 60.0,  # en secondes
-        },
-    }
-    # --- Fin de la configuration de Celery Beat ---
-
-    # --- Tâche à exécuter au démarrage de Celery Beat ---
-    @beat_init.connect(weak=False)
-    def on_beat_init(sender, **kwargs):
-        """Exécute la tâche de rafraîchissement du cache dès que Beat démarre."""
-        # Pour obtenir un logger dans un signal Celery, on utilise la méthode `get_logger`
-        # de l'objet `log` de l'application Celery (`sender.app`). La méthode correcte
-        # pour obtenir le logger par défaut de Celery est `get_default_logger`.
-        logger = sender.app.log.get_default_logger()
-        logger.info("Celery Beat a démarré. Lancement de la tâche de rafraîchissement initial du cache.")
-        # On utilise `send_task` pour s'assurer que la tâche est envoyée via le broker.
-        sender.app.send_task('app.tasks.refresh_models_cache_task')
-
-    class ContextTask(celery.Task):
-        def __call__(self, *args, **kwargs):
-            with app.app_context():
-                return self.run(*args, **kwargs)
-
-    celery.Task = ContextTask
