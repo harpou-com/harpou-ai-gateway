@@ -1,0 +1,84 @@
+# --- Étape 1: Préparation PDM ---
+# Utilise une image Python légère pour installer PDM
+FROM python:3.11-slim as pdm_installer
+
+# Installe PDM sans cache pour une image plus petite
+RUN pip install --no-cache-dir pdm
+
+# --- Étape 2: Image finale de production pour Celery Beat ---
+FROM python:3.11-slim
+
+# Définit le répertoire de travail dans le conteneur
+WORKDIR /app
+
+# Créer un utilisateur et un groupe non-root pour la sécurité
+# C'est une bonne pratique pour éviter de faire tourner le processus en tant que root
+# Correction: Suppression de '--create-home' car non supporté pour adduser --system
+RUN addgroup --system --gid 1000 appgroup && adduser --system --home /home/appuser --uid 1000 --ingroup appgroup appuser
+
+# La ligne suivante est supprimée car PDM sera réinstallé dans cette étape
+# COPY --from=pdm_installer /usr/local/bin/pdm /usr/local/bin/pdm
+
+# Installer les dépendances système nécessaires pour la compilation ET l'exécution
+# build-essential et python3-dev sont souvent requis pour compiler des paquets Python avec des dépendances C
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends build-essential python3-dev libxml2-dev libxslt1-dev procps && \
+    rm -rf /var/lib/apt/lists/*
+
+# Réinstaller PDM dans cette étape pour s'assurer que tous ses modules sont accessibles
+RUN pip install --no-cache-dir pdm
+
+# Copier les fichiers de gestion des dépendances PDM
+COPY pyproject.toml pdm.lock ./
+
+# Installer les dépendances de production et s'assurer que PDM utilise un venv
+# PDM crée .venv/bin/python et .venv/bin/celery
+RUN pdm config python.use_venv true && \
+    pdm install --prod --no-lock --no-editable --no-self && \
+    apt-get purge -y --auto-remove build-essential python3-dev libxml2-dev libxslt1-dev && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# La ligne suivante a été supprimée car les paquets sont installés directement dans cette étape
+# et ne nécessitent pas d'être copiés depuis l'étape pdm_installer.
+# COPY --from=pdm_installer /root/.local/share/pdm/venvs/__pypackages__/3.11 /app/__pypackages__/3.11
+
+# Copier le code de l'application nécessaire pour Celery Beat
+# Le répertoire 'app' contient maintenant 'app/tasks.py'
+COPY app ./app
+COPY celery_worker.py worker_launcher.py ./
+# La ligne suivante a été supprimée car le répertoire 'tasks' n'est plus nécessaire :
+# COPY tasks ./tasks # Assurez-vous que le répertoire 'tasks' est copié si vos tâches Celery y sont définies
+
+# Configurer les variables d'environnement pour l'utilisateur non-root
+# Le PATH doit inclure le répertoire bin du venv PDM
+ENV PATH="/app/.venv/bin:$PATH"
+# PYTHONPATH doit pointer vers le site-packages du venv pour que Python trouve les modules
+ENV PYTHONPATH="/app/.venv/lib/python3.11/site-packages:$PYTHONPATH"
+ENV PYTHONUNBUFFERED=1
+
+# Changer le propriétaire du répertoire de l'application pour l'utilisateur non-root
+RUN chown -R appuser:appgroup /app
+
+# Basculer vers l'utilisateur non-privilégié
+USER appuser
+
+# --- Débogage : Vérification de l'environnement PDM et des chemins ---
+# Ces commandes afficheront des informations cruciales pendant la construction.
+# '|| true' permet au build de continuer même si une commande échoue (pour le débogage).
+RUN echo "--- Débogage de l'environnement PDM ---" && \
+    echo "PATH: $PATH" && \
+    echo "PYTHONPATH: $PYTHONPATH" && \
+    echo "Contenu de /app/.venv/lib :" && \
+    ls -l /app/.venv/lib || true && \
+    echo "Contenu de /app/.venv/bin :" && \
+    ls -l /app/.venv/bin || true && \
+    echo "Tentative d'exécution de 'pdm --version' :" && \
+    pdm --version || true && \
+    echo "Tentative d'exécution de 'celery --version' via venv path:" && \
+    /app/.venv/bin/celery --version || true && \
+    echo "--- Fin du débogage ---"
+
+# Commande par défaut pour démarrer Celery Beat
+# Utilise 'pdm run' qui est la méthode recommandée pour exécuter les scripts gérés par PDM.
+# PDM se chargera de trouver l'exécutable 'celery' dans son environnement.
+CMD ["pdm", "run", "celery", "-A", "celery_worker", "beat", "-l", "info", "--scheduler", "celery.beat.PersistentScheduler"]

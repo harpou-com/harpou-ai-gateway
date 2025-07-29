@@ -124,28 +124,6 @@ fi
 # Vérification finale de greenlet avant l'exécution, pour tous les conteneurs.
 check_and_repair_greenlet
 
-# --- Étape 3: Attendre les dépendances avant de lancer (Logique d'ordre de démarrage) ---
-
-# Extraire la commande principale (start, worker, beat) pour savoir quel service nous sommes.
-MAIN_COMMAND=""
-if [ "$1" = "pdm" ] && [ "$2" = "run" ]; then
-    MAIN_COMMAND="$3"
-fi
-
-echo "[$(hostname)] --- Détection de la commande principale : $MAIN_COMMAND ---"
-
-# Logique pour le worker et le service web ('start') : ils doivent attendre que le 'beat' soit prêt.
-# Le service 'beat' lui-même n'attend rien et démarre directement.
-if [ "$MAIN_COMMAND" = "worker" ] || [ "$MAIN_COMMAND" = "start" ]; then
-    BEAT_SCHEDULE_FILE="/app/logs/celerybeat-schedule"
-    echo "[$(hostname)] -> Attente du service 'beat' (vérification de l'existence de $BEAT_SCHEDULE_FILE)..."
-    while [ ! -f "$BEAT_SCHEDULE_FILE" ]; do
-        echo "[$(hostname)] -> Le fichier de planification du 'beat' ($BEAT_SCHEDULE_FILE) est introuvable. Nouvel essai dans 5s..."
-        sleep 5
-    done
-    echo "[$(hostname)] -> Le service 'beat' semble prêt. Démarrage de '$MAIN_COMMAND'."
-fi
-
-# --- Étape 4: Lancement de l'application ---
+# --- Étape 3: Lancement de l'application ---
 echo "[$(hostname)] --- Toutes les dépendances sont prêtes. Lancement de la commande : $@ ---"
 exec gosu appuser "$@"

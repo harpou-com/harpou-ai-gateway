@@ -1,27 +1,58 @@
-"""Point d'entrée dédié pour les workers et le service beat de Celery."""
-
-import eventlet
-
-# IMPORTANT : eventlet.monkey_patch() doit être la toute première instruction exécutée
-# pour garantir la compatibilité avec les bibliothèques asynchrones.
+# celery_worker.py
+import eventlet # DOIT ÊTRE LA PREMIÈRE IMPORTATION SI UTILISATION DU MONKEY PATCHING
 eventlet.monkey_patch()
 
-# Importer les éléments nécessaires de l'application APRÈS le patching.
-from app import create_app, tasks # noqa: F401
+from celery import Celery
+from celery.signals import beat_init
+import os
 
-# 1. Créer une instance de l'application Flask.
-#    L'appel à create_app() va charger la configuration et initialiser Celery.
-app = create_app(init_socketio=False)
+# Initialiser l'application Celery
+celery = Celery(
+    'ai_gateway',
+    broker=None, # Le broker sera configuré par l'application Flask
+    backend=None, # Le backend sera configuré par l'application Flask
+    include=['app.tasks'] # Suppose que les tâches sont définies dans app/tasks.py
+)
 
-# 2. Exposer l'instance Celery configurée pour que la CLI puisse la trouver.
-#    L'instance a été configurée lors de l'appel à create_app().
-from app.extensions import celery, socketio
+# Fonction pour initialiser l'application Celery avec le contexte de l'application Flask.
+# Cette fonction doit être appelée par l'application web Flask (run.py)
+# et par le lanceur de worker Celery (worker_launcher.py),
+# PAS globalement par celery_worker.py lui-même.
+def init_celery_with_flask_app(app):
+    """
+    Initialise l'application Celery avec le contexte de l'application Flask.
+    Ceci doit être appelé par l'application web Flask (run.py)
+    et par le lanceur de worker Celery (worker_launcher.py).
+    """
+    celery.conf.update(app.config) # Met à jour la configuration Celery à partir de la config Flask
 
-# 3. Initialiser SocketIO pour le worker dans le contexte de l'application.
-#    Ceci permet aux tâches d'émettre des événements via le message queue.
-with app.app_context():
-    socketio.init_app(app)
+    # --- Configuration de Celery Beat pour les tâches périodiques ---
+    update_interval_minutes = int(app.config.get('llm_cache_update_interval_minutes', 5))
+    app.logger.info(f"Configuration de la tâche de rafraîchissement du cache des modèles toutes les {update_interval_minutes} minutes.")
+    
+    celery.conf.beat_schedule = {
+        'refresh-models-every-x-minutes': {
+            'task': 'app.tasks.refresh_models_cache_task',
+            'schedule': update_interval_minutes * 60.0,  # en secondes
+        },
+    }
 
-# La CLI Celery peut maintenant être lancée avec :
-# pdm run worker -> celery -A celery_worker.celery worker ...
-# pdm run beat   -> celery -A celery_worker.celery beat ...
+    @beat_init.connect(weak=False)
+    def on_beat_init(sender, **kwargs):
+        logger = sender.app.log.get_default_logger()
+        logger.info("Celery Beat a démarré. Lancement de la tâche de rafraîchissement initial du cache.")
+        sender.app.send_task('app.tasks.refresh_models_cache_task')
+
+    TaskBase = celery.Task
+    class ContextTask(TaskBase):
+        abstract = True
+        def __call__(self, *args, **kwargs):
+            with app.app_context():
+                return TaskBase.__call__(self, *args, **kwargs)
+    celery.Task = ContextTask
+    return celery
+
+# IMPORTANT: Ne pas appeler create_app() ou init_celery_with_flask_app() globalement ici.
+# Celery Beat et les Workers Celery doivent pouvoir importer 'celery' sans
+# initialiser l'application web Flask complète.
+# Le contexte de l'application Flask est géré par la `ContextTask` pour l'exécution des tâches individuelles.

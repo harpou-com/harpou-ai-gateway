@@ -29,10 +29,6 @@ def get_rate_limit_from_key():
     # Sinon, retourne la limite par défaut de l'application
     return current_app.config.get("RATELIMIT_DEFAULT")
 
-# Initialisation de Celery
-# L'instance est créée ici, mais configurée dans la factory d'application (create_app)
-celery = Celery()
-
 # Initialisation de SocketIO
 socketio = SocketIO(async_mode='eventlet')
 

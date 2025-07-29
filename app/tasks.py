@@ -7,8 +7,8 @@ import json
 # Configuration du logger
 logger = logging.getLogger(__name__)
 
-# Initialisation de Celery
-from .extensions import celery  # Import Celery instance
+# Importer l'instance unique de Celery depuis le module centralisé.
+from celery_worker import celery
 
 
 @celery.task(name='app.tasks.refresh_models_cache_task')
