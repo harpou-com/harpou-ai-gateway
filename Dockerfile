@@ -1,30 +1,29 @@
-# --- Étape 1: Build ---
-# Utiliser une image complète pour installer les dépendances
-FROM python:3.11-slim as builder
+# --- Étape 1: Préparation (Optionnelle mais bonne pratique) ---
+# On utilise une étape pour installer PDM proprement.
+FROM python:3.11-slim as pdm_installer
 
-WORKDIR /app
+RUN pip install --no-cache-dir pdm
 
-# Installer les dépendances système nécessaires pour construire certains paquets Python (comme greenlet)
-# et PDM lui-même.
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends build-essential python3-dev procps libxml2-dev libxslt-dev && \
-    rm -rf /var/lib/apt/lists/* && \
-    pip install --no-cache-dir pdm
-
-# Copier les fichiers de projet et installer les dépendances de production
-COPY pyproject.toml pdm.lock ./
-# --no-editable est recommandé pour les installations de production
-RUN pdm install --prod --no-lock --no-editable --no-self
-
-# --- Étape 2: Runtime ---
-# Utiliser une image slim pour la production
+# --- Étape 2: Image finale de production ---
 FROM python:3.11-slim
 
 WORKDIR /app
 
 # Créer un utilisateur et un groupe non-root pour la sécurité
-# La commande `adduser --system` est la méthode correcte pour les images basées sur Debian (comme python:slim)
 RUN addgroup --system --gid 1000 appgroup && adduser --system --create-home --home /home/appuser --uid 1000 --ingroup appgroup appuser
+
+# Copier PDM depuis l'étape précédente
+COPY --from=pdm_installer /usr/local/bin/pdm /usr/local/bin/pdm
+
+# Installer les dépendances système nécessaires pour la compilation ET l'exécution
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends build-essential python3-dev libxml2-dev libxslt1-dev procps && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copier les fichiers de projet et installer les dépendances de production DANS l'étape finale
+COPY pyproject.toml pdm.lock ./
+RUN pdm install --prod --no-lock --no-editable --no-self && \
+    apt-get purge -y --auto-remove build-essential python3-dev libxml2-dev libxslt1-dev && apt-get clean
 
 # Copier l'environnement virtuel depuis l'étape de build
 COPY --from=builder /app/__pypackages__/3.11 /app/__pypackages__/3.11

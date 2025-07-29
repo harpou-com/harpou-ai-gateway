@@ -55,7 +55,7 @@ AVAILABLE_TOOLS = [
                 "description": "L'URL complète de la page web à lire."
             }
         },
-            "required": ["query"]
+            "required": ["url"]
         }
     }
 ]
@@ -94,9 +94,9 @@ Répondez avec un objet JSON structuré comme suit :
         logger.info(f"Décision du LLM reçue : {decision}")
         return decision
     except Exception as e:
-        logger.error(f"Échec de l'obtention ou de l'analyse de la décision du LLM : {e}")
-        # Réponse de secours en cas d'erreur
-        return {"action": "respond", "message": "Je rencontre une difficulté pour traiter votre demande."}
+        logger.error(f"Échec de l'obtention ou de l'analyse de la décision du LLM : {e}", exc_info=True)
+        # Il est crucial de relancer l'exception pour que la tâche Celery soit marquée comme FAILED.
+        raise
 
 def _format_results_as_context(results: List[Dict[str, Any]]) -> str:
     """Formate une liste de résultats de recherche en une chaîne de contexte pour le LLM."""
@@ -127,88 +127,120 @@ def orchestrator_task(self, messages: List[Dict[str, Any]], sid: str, model_name
     Tâche Celery qui orchestre la décision de l'IA et lance le flux de travail approprié.
     Le résultat de cette tâche est la réponse finale, la rendant compatible avec le polling HTTP.
     """
-    # Extraire la question la plus récente de l'historique des messages pour la prise de décision.
-    user_question = ""
-    if messages and isinstance(messages, list) and messages[-1].get("role") == "user":
-        # Note: Pour l'instant, on suppose que le contenu est une chaîne simple.
-        user_question = messages[-1].get("content", "")
+    try:
+        # Extraire la question la plus récente de l'historique des messages pour la prise de décision.
+        user_question = ""
+        if messages and isinstance(messages, list) and messages[-1].get("role") == "user":
+            user_question = messages[-1].get("content", "")
 
-    if not user_question or not isinstance(user_question, str):
-        logger.error(f"Impossible d'extraire une question utilisateur valide des messages pour SID {sid}.")
-        return "Erreur: Le dernier message doit être de l'utilisateur et contenir du texte."
+        if not user_question or not isinstance(user_question, str):
+            logger.error(f"Impossible d'extraire une question utilisateur valide des messages pour SID {sid}.")
+            # Fallback LLM pour message utilisateur en cas d'erreur
+            admin_email = current_app.config.get("SYSTEM_ADMIN_EMAIL", "admin@harpou.ai")
+            fallback_prompt = (
+                "Je rencontre une difficulté technique pour traiter votre demande. "
+                f"Veuillez contacter l'administrateur système à l'adresse {admin_email}."
+            )
+            try:
+                # On tente de demander au LLM de reformuler le message d'excuse
+                llm_fallback = get_llm_completion(
+                    f"Formule un message d'excuse poli à transmettre à l'utilisateur en cas de panne technique. "
+                    f"Indique qu'il peut contacter l'administrateur à {admin_email}.",
+                    model_name=model_name,
+                    json_mode=False
+                )
+                return llm_fallback if llm_fallback else fallback_prompt
+            except Exception as e:
+                logger.error(f"Erreur lors de la génération du fallback LLM : {e}")
+                return fallback_prompt
 
-    logger.info(f"Démarrage de l'orchestrateur pour SID {sid} avec la question: '{user_question}'")
-    decision = get_llm_decision(user_question, model_name)
-    logger.info(f"Décision IA pour SID {sid} : {decision}")
+        # 2. Prise de décision : Appeler le LLM pour savoir s'il faut utiliser un outil ou répondre directement
+        decision = get_llm_decision(user_question, model_name=model_name)
 
-    tool_results = None
-    synthesis_messages = copy.deepcopy(messages)
-
-    if decision.get('action') == 'call_tool':
+        # 3. Exécution de l'action décidée
         tool_name = decision.get("tool_name")
-        if tool_name == "search_web":
-            query = decision.get("parameters", {}).get("query", "")
-            logger.info(f"Orchestrateur : appel de 'search_web' avec la requête '{query}'")
-            search_results = search_web_task(query=query) # Ceci retourne maintenant une liste de dicts
+        logger.info(f"SID {sid}: Action décidée - Outil: {tool_name}, Décision: {decision}")
 
-            if isinstance(search_results, list) and search_results:
-                # On a des résultats, on va lire le premier.
-                top_result_url = search_results[0].get('url')
-                logger.info(f"Orchestrateur : appel de 'read_webpage' sur le premier résultat : {top_result_url}")
-                scraped_content = read_webpage_task(url=top_result_url)
+        tool_results = ""
+        synthesis_messages = copy.deepcopy(messages)
+        if decision.get("action") == "call_tool" and tool_name in ["search_web", "read_webpage"]:
+            try:
+                if tool_name == "search_web":
+                    query = decision.get("parameters", {}).get("query", "")
+                    logger.info(f"Orchestrateur : appel de l'outil 'search_web' avec la requête : {query}")
+                    search_results = search_web_task(query=query)
+                    if isinstance(search_results, list) and search_results:
+                        top_result_url = search_results[0].get('url')
+                        logger.info(f"Orchestrateur : appel de 'read_webpage' sur le premier résultat : {top_result_url}")
+                        scraped_content = read_webpage_task(url=top_result_url)
+                        final_context = f"Contenu détaillé de la page principale ({top_result_url}):\n{scraped_content}\n\n"
+                        final_context += "--- AUTRES RÉSULTATS DE RECHERCHE ---\n"
+                        final_context += _format_results_as_context(search_results[1:5])
+                        tool_results = final_context
+                    else:
+                        tool_results = "La recherche n'a retourné aucun résultat."
+                elif tool_name == "read_webpage":
+                    url = decision.get("parameters", {}).get("url", "")
+                    logger.info(f"Orchestrateur : appel direct de 'read_webpage' sur l'URL : {url}")
+                    tool_results = read_webpage_task(url=url)
+                else:
+                    logger.warning(f"Outil non reconnu '{tool_name}' demandé pour SID {sid}")
+                    tool_results = f"Erreur: L'outil '{tool_name}' n'est pas reconnu."
+            except Exception as e:
+                logger.error(f"Erreur lors de l'exécution de l'outil '{tool_name}' pour SID {sid}: {e}", exc_info=True)
+                tool_results = f"Erreur lors de l'exécution de l'outil : {e}"
 
-                # On construit le contexte final pour la synthèse
-                final_context = f"Contenu détaillé de la page principale ({top_result_url}):\n{scraped_content}\n\n"
-                final_context += "--- AUTRES RÉSULTATS DE RECHERCHE ---\n"
-                # On ajoute les 4 suivants avec leurs extraits
-                final_context += _format_results_as_context(search_results[1:5])
-                tool_results = final_context
-            else:
-                tool_results = "La recherche n'a retourné aucun résultat."
+        # --- Étape de Synthèse Finale ---
+        logger.info(f"Début de la synthèse finale pour SID {sid}.")
 
-        elif tool_name == "read_webpage":
-            url = decision.get("parameters", {}).get("url", "")
-            logger.info(f"Orchestrateur : appel direct de 'read_webpage' sur l'URL : {url}")
-            tool_results = read_webpage_task(url=url)
-        else:
-            logger.warning(f"Outil non reconnu '{tool_name}' demandé pour SID {sid}")
-            tool_results = f"Erreur: L'outil '{tool_name}' n'est pas reconnu."
-
-    # --- Étape de Synthèse Finale ---
-    logger.info(f"Début de la synthèse finale pour SID {sid}.")
-
-    # Préparer les messages pour le LLM de synthèse en injectant le contexte si nécessaire
-    if tool_results:
-        # Si un outil a été utilisé, on injecte les résultats dans un prompt système.
-        system_prompt = f"""Vous êtes un assistant de synthèse. Utilisez les informations de recherche suivantes pour répondre à la dernière question de l'utilisateur.
+        # Préparer les messages pour le LLM de synthèse en injectant le contexte si nécessaire
+        if tool_results:
+            system_prompt = f"""Vous êtes un assistant de synthèse. Utilisez les informations de recherche suivantes pour répondre à la dernière question de l'utilisateur.
 Citez vos sources en utilisant les URL fournies pour chaque information que vous utilisez, en format Markdown comme ceci : [Texte du lien](URL).
 Ne mentionnez que les liens pertinents pour la réponse.
 
 Informations de recherche:\n---\n{tool_results}\n---"""
-        if synthesis_messages and synthesis_messages[0].get("role") == "system":
-            synthesis_messages[0]["content"] = system_prompt
-        else:
+            if synthesis_messages and synthesis_messages[0].get("role") == "system":
+                synthesis_messages[0]["content"] = system_prompt
+            else:
+                synthesis_messages.insert(0, {"role": "system", "content": system_prompt})
+        elif not synthesis_messages or synthesis_messages[0].get("role") != "system":
+            system_prompt = "Vous êtes un assistant IA généraliste et serviable."
             synthesis_messages.insert(0, {"role": "system", "content": system_prompt})
-    elif not synthesis_messages or synthesis_messages[0].get("role") != "system":
-        # Si aucune information d'outil n'est présente, on s'assure qu'un prompt système générique existe.
-        system_prompt = "Vous êtes un assistant IA généraliste et serviable."
-        synthesis_messages.insert(0, {"role": "system", "content": system_prompt})
 
-    # La valeur retournée ici est le résultat de la tâche Celery,
-    # qui sera récupéré par l'endpoint de polling HTTP.
-    try:
-        logger.info(f"Appel final au LLM pour synthèse pour SID {sid}.")
-        response_obj = _execute_llm_request(
-            model_name=model_name,
-            messages=synthesis_messages,
-            stream=False
-        )
-        final_answer = response_obj.choices[0].message.content
-        logger.info(f"Réponse finale synthétisée pour SID {sid}: '{final_answer[:100]}...'")
-        return final_answer
+        # La valeur retournée ici est le résultat de la tâche Celery,
+        # qui sera récupéré par l'endpoint de polling HTTP.
+        try:
+            logger.info(f"Appel final au LLM pour synthèse pour SID {sid}.")
+            response_obj = _execute_llm_request(
+                model_name=model_name,
+                messages=synthesis_messages,
+                stream=False
+            )
+            final_answer = response_obj.choices[0].message.content
+            logger.info(f"Réponse finale synthétisée pour SID {sid}: '{final_answer[:100]}...'")
+            return final_answer
+        except Exception as e:
+            logger.error(f"Échec de la synthèse finale pour SID {sid}: {e}", exc_info=True)
+            admin_email = current_app.config.get("SYSTEM_ADMIN_EMAIL", "admin@harpou.ai")
+            fallback_msg = (
+                "Je rencontre une difficulté technique pour générer la réponse finale. "
+                f"Veuillez contacter l'administrateur système à l'adresse {admin_email}."
+            )
+            try:
+                llm_fallback = get_llm_completion(
+                    f"Formule un message d'excuse poli à transmettre à l'utilisateur en cas de panne technique. "
+                    f"Indique qu'il peut contacter l'administrateur à {admin_email}.",
+                    model_name=model_name,
+                    json_mode=False
+                )
+                return llm_fallback if llm_fallback else fallback_msg
+            except Exception as e2:
+                logger.error(f"Erreur lors de la génération du fallback LLM synthèse : {e2}")
+                return fallback_msg
     except Exception as e:
-        logger.error(f"Échec de la synthèse finale pour SID {sid}: {e}", exc_info=True)
-        return "Désolé, une erreur est survenue lors de la génération de la réponse finale."
+        logger.error(f"Erreur inattendue dans orchestrator_task pour SID {sid}: {e}", exc_info=True)
+        return "Désolé, une erreur est survenue lors du traitement de votre demande."
 
 @celery.task(bind=True)
 def search_web_task(self, query):
@@ -348,10 +380,22 @@ def synthesis_task(self, task_results: Optional[str], messages: List[Dict[str, A
 
     except Exception as e:
         logger.error(f"Échec de la synthèse par le LLM en streaming : {e}", exc_info=True)
-        error_msg = f"J'ai eu une difficulté à formuler une réponse. Erreur: {e}"
-        if task_results:
-             error_msg = f"J'ai trouvé des informations, mais j'ai eu du mal à les résumer. Voici les données brutes : {task_results}"
-        socketio.emit('task_result', {'status': 'error', 'message': error_msg}, room=sid)
-        # On retourne le message d'erreur pour que la tâche parente (orchestrator) le reçoive.
-        return error_msg
+        admin_email = current_app.config.get("SYSTEM_ADMIN_EMAIL", "admin@harpou.ai")
+        error_msg = (
+            "Je rencontre une difficulté technique pour générer la réponse finale. "
+            f"Veuillez contacter l'administrateur système à l'adresse {admin_email}."
+        )
+        try:
+            llm_fallback = get_llm_completion(
+                f"Formule un message d'excuse poli à transmettre à l'utilisateur en cas de panne technique. "
+                f"Indique qu'il peut contacter l'administrateur à {admin_email}.",
+                model_name=model_name,
+                json_mode=False
+            )
+            socketio.emit('task_result', {'status': 'error', 'message': llm_fallback}, room=sid)
+            return llm_fallback if llm_fallback else error_msg
+        except Exception as e2:
+            logger.error(f"Erreur lors de la génération du fallback LLM synthèse streaming : {e2}")
+            socketio.emit('task_result', {'status': 'error', 'message': error_msg}, room=sid)
+            return error_msg
     return final_answer

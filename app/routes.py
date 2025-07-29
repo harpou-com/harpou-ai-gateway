@@ -59,6 +59,11 @@ def list_models():
     Le cache est rafraîchi périodiquement par une tâche de fond.
     """
     cached_models = get_models()
+    if not cached_models:
+        # Forcer un refresh immédiat si le cache est vide
+        from .services import refresh_and_cache_models
+        cached_models = refresh_and_cache_models()
+        current_app.logger.info("Cache vide, rafraîchissement forcé côté gateway.")
     current_app.logger.info(f"Service de la liste des modèles depuis le cache ({len(cached_models)} modèles).")
 
     # Formater la réponse finale pour être compatible avec l'API OpenAI

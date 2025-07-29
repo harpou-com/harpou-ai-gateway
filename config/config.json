@@ -27,6 +27,7 @@
     ],
     "primary_backend_name": "ollama_local",
     "high_availability_strategy": "failover",
+    "SYSTEM_ADMIN_EMAIL": "admin@example.com",
     "SEARXNG_BASE_URL": "http://localhost:8080",
     "FLASK_SECRET_KEY": "a_very_secret_key_for_local_dev_only",
     "CELERY_BROKER_URL": "redis://localhost:6379/0",

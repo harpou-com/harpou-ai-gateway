@@ -153,6 +153,7 @@ def create_app(config_object=None, init_socketio=True):
         'RATELIMIT_STORAGE_URI': 'RATELIMIT_STORAGE_URI',
         'LLM_CACHE_MIN_UPDATE': 'llm_cache_update_interval_minutes',
         'LLM_BACKEND_TIMEOUT': 'LLM_BACKEND_TIMEOUT',
+        'SYSTEM_ADMIN_EMAIL': 'SYSTEM_ADMIN_EMAIL',
     }
 
     for env_key, config_key in env_to_config_map.items():
@@ -246,6 +247,7 @@ def create_app(config_object=None, init_socketio=True):
     app.logger.info(f"  - High Availability Strategy: {app.config.get('high_availability_strategy')}")
     app.logger.info(f"  - Rate Limit Default: {app.config.get('RATELIMIT_DEFAULT', 'non défini')}")
     app.logger.info(f"  - Rate Limit Storage: {app.config.get('RATELIMIT_STORAGE_URI', 'en mémoire')}")
+    app.logger.info(f"  - System Admin Email: {app.config.get('SYSTEM_ADMIN_EMAIL', 'non défini')}")
     app.logger.info("="*50)
 
     # --- Initialisation des modules et extensions ---
