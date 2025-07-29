@@ -17,6 +17,7 @@ dependencies = [
     "flask-limiter>=3.12",
     "beautifulsoup4~=4.12",
     "lxml~=5.2",
+    "flask-caching",
 ]
 requires-python = ">=3.11"
 readme = "README.md"

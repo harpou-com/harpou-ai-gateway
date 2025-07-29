@@ -27,7 +27,7 @@ def refresh_and_cache_models():
     """
     current_app.logger.info("Début du rafraîchissement de la liste des modèles...")
     llm_backends = current_app.config.get('llm_backends', [])
-    exposed_models = []
+    exposed_models = {} # Utiliser un dictionnaire pour un accès rapide par ID
 
     for backend in llm_backends:
         current_app.logger.debug(f"Backend brut: {backend}")
@@ -39,15 +39,12 @@ def refresh_and_cache_models():
         if backend.get('llm_auto_load'):
             current_app.logger.info(f"Découverte des modèles pour le backend '{backend_name}'.")
             try:
-                url = backend.get('base_url', '')
-                # Utilisation de urljoin pour une construction d'URL plus robuste
-                models_url = urljoin(f"{url.rstrip('/')}/v1/", "models")
-
                 backend_models = list_models_from_backend(backend)
                 for model in backend_models:
                     model_dict = model.model_dump()
-                    model_dict['id'] = f"{backend_name}/{model.id}"
-                    exposed_models.append(model_dict)
+                    composite_id = f"{backend_name}/{model.id}"
+                    model_dict['id'] = composite_id # S'assurer que l'ID composite est dans l'objet
+                    exposed_models[composite_id] = model_dict
             except APIError as e:
                 current_app.logger.error(f"Impossible de récupérer les modèles pour le backend '{backend_name}': {e}")
                 # On continue avec les autres backends au lieu de planter.
@@ -64,8 +61,8 @@ def refresh_and_cache_models():
             current_app.logger.info(f"Exposition manuelle du backend '{backend_name}' via son modèle par défaut '{default_model_name}'.")
             # On crée un ID de modèle qui inclut le nom du backend pour le routage.
             manual_model_id = f"{backend_name}/{default_model_name}"
-            manual_model = GatewayBackendModel(id=manual_model_id)
-            exposed_models.append(manual_model.model_dump())
+            manual_model = GatewayBackendModel(id=manual_model_id).model_dump()
+            exposed_models[manual_model_id] = manual_model
     
     set_models(exposed_models)
     current_app.logger.info(f"Cache des modèles mis à jour avec {len(exposed_models)} modèles.")

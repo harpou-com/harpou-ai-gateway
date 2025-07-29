@@ -1,8 +1,11 @@
+# app/extensions.py
+
 from celery import Celery
 from flask_socketio import SocketIO
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask import request, g, current_app
+from flask_caching import Cache # <--- AJOUT POUR LE CACHE
 
 def rate_limit_identifier():
     """
@@ -26,17 +29,17 @@ def get_rate_limit_from_key():
     # Sinon, retourne la limite par défaut de l'application
     return current_app.config.get("RATELIMIT_DEFAULT")
 
-# On initialise Celery ici, mais sans configuration.
-# La configuration sera chargée depuis l'application Flask plus tard.
-celery = Celery(__name__)
-# On initialise SocketIO ici, mais sans configuration.
-# La configuration (async_mode, message_queue, etc.) sera appliquée
-# via socketio.init_app() dans la factory de l'application.
+# Initialisation de Celery
+# L'instance est créée ici, mais configurée dans la factory d'application (create_app)
+celery = Celery()
+
+# Initialisation de SocketIO
 socketio = SocketIO(async_mode='eventlet')
 
+# Initialisation du Cache # <--- AJOUT POUR LE CACHE
+flask_cache = Cache()
+
 # Initialisation de Flask-Limiter.
-# La stratégie de clé est personnalisée pour utiliser la clé API si elle est présente,
-# Les limites réelles sont chargées depuis la configuration de l'application.
 limiter = Limiter(
     key_func=rate_limit_identifier,
     # La limite par défaut est maintenant une fonction dynamique

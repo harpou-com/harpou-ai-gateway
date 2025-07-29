@@ -5,7 +5,7 @@ import logging
 from logging.handlers import TimedRotatingFileHandler
 from flask import Flask
 from dotenv import load_dotenv
-from .extensions import celery, socketio, limiter
+from .extensions import celery, socketio, limiter, flask_cache
 from flask_cors import CORS
 
 # Charger les variables d'environnement, sauf en mode test pour éviter les I/O bloquantes sur le filesystem.
@@ -96,19 +96,33 @@ def create_app(config_object=None, init_socketio=True):
     CORS(app, origins="*")
 
     # --- Logique de chargement de la configuration ---
-    # Priorité : 1. Secret Docker > 2. Variables d'environnement > 3. config.json
+    # Priorité : 1. Secret Docker > 2. Variables d'environnement > 3. config.json > 4. Valeurs par défaut
 
-    # 1. Charger la configuration depuis config.json (racine du projet)
-    config = {}
+    # 4. Définir les valeurs par défaut pour un environnement de développement robuste.
+    # Celles-ci seront surchargées par config.json et les variables d'environnement.
+    redis_url = os.environ.get('REDIS_URL')
+    cache_type = 'RedisCache' if redis_url else 'SimpleCache'
+
+    config = {
+        # Si Redis est disponible, l'utiliser pour le cache pour le partage entre le worker et l'app web.
+        # Sinon, utiliser un cache en mémoire simple (adapté au dev sans worker).
+        'CACHE_TYPE': cache_type,
+        'CACHE_REDIS_URL': redis_url,
+        'RATELIMIT_STORAGE_URI': redis_url or 'memory://' # Utilise Redis si disponible.
+    }
+    if cache_type == 'SimpleCache' and os.environ.get("APP_ENV") != "testing":
+        app.logger.warning("La variable d'environnement REDIS_URL n'est pas définie. Le cache utilise 'SimpleCache' (en mémoire). "
+                           "Cela peut causer des incohérences si vous utilisez des workers Celery.")
+
     # Le chemin racine du projet est un niveau au-dessus du répertoire de l'application (app.root_path)
     project_root = os.path.abspath(os.path.join(app.root_path, os.pardir))
-    # Le fichier de configuration est maintenant dans le dossier /config
+    # 3. Charger la configuration depuis config.json (racine du projet)
     config_path = os.path.join(project_root, 'config', 'config.json')
 
     app.logger.info(f"Recherche du fichier de configuration à l'emplacement : {config_path}")
     if os.path.exists(config_path):
         with open(config_path) as config_file:
-            config = json.load(config_file)
+            config.update(json.load(config_file))
         app.logger.info("Fichier config.json chargé avec succès.")
     else:
         app.logger.warning("Fichier config.json non trouvé. Utilisation des valeurs par défaut et des variables d'environnement.")
@@ -231,6 +245,7 @@ def create_app(config_object=None, init_socketio=True):
     app.logger.info("="*50)
     app.logger.info("Configuration finale de l'AI Gateway chargée :")
     app.logger.info(f"  - Flask Secret Key: {'Définie' if app.config.get('SECRET_KEY') else 'Non définie'} (source: {secret_key_source})")
+    app.logger.info(f"  - Cache Type: {app.config.get('CACHE_TYPE')}")
     app.logger.info(f"  - Celery Broker URL: {app.config.get('CELERY_BROKER_URL')}")
     app.logger.info(f"  - Celery Result Backend: {app.config.get('CELERY_RESULT_BACKEND')}")
     app.logger.info(f"  - SearXNG Base URL: {app.config.get('SEARXNG_BASE_URL')}")
@@ -256,25 +271,15 @@ def create_app(config_object=None, init_socketio=True):
     from .auth import _initialize_api_keys
     _initialize_api_keys(app)
 
+    # Initialiser Flask-Caching
+    flask_cache.init_app(app)
+
     # Initialiser Flask-Limiter
     # Les limites sont lues depuis la configuration de l'application (ex: RATELIMIT_DEFAULT)
     limiter.init_app(app)
 
     # Initialiser Celery
     init_celery(app)
-
-    # --- Remplissage initial du cache des modèles ---
-    with app.app_context():
-        # Ceci est fait au démarrage pour s'assurer que la liste des modèles est
-        # disponible immédiatement, sans attendre la première exécution de la tâche périodique.
-        # Note : Cela peut ralentir légèrement le démarrage de l'application.
-        from .services import refresh_and_cache_models
-        app.logger.info("Lancement du premier rafraîchissement du cache des modèles au démarrage...")
-        try:
-            refresh_and_cache_models()
-            app.logger.info("Premier rafraîchissement du cache terminé.")
-        except Exception as e:
-            app.logger.error(f"Échec du premier rafraîchissement du cache des modèles : {e}", exc_info=True)
 
     # Initialiser SocketIO (uniquement pour le serveur web)
     if init_socketio:
@@ -296,7 +301,11 @@ def create_app(config_object=None, init_socketio=True):
 
 def init_celery(app: Flask):
     """Initialise et configure l'instance Celery avec le contexte Flask."""
+    from celery.signals import beat_init
     # Celery utilise directement les clés de app.config comme 'broker_url'
+    # On définit le nom de l'application principale pour Celery.
+    # C'est la manière correcte de l'intégrer avec le patron "Application Factory".
+    celery.main = app.import_name
     celery.conf.update(app.config)
 
     # --- Configuration de Celery Beat pour les tâches périodiques ---
@@ -310,6 +319,18 @@ def init_celery(app: Flask):
         },
     }
     # --- Fin de la configuration de Celery Beat ---
+
+    # --- Tâche à exécuter au démarrage de Celery Beat ---
+    @beat_init.connect(weak=False)
+    def on_beat_init(sender, **kwargs):
+        """Exécute la tâche de rafraîchissement du cache dès que Beat démarre."""
+        # Pour obtenir un logger dans un signal Celery, on utilise la méthode `get_logger`
+        # de l'objet `log` de l'application Celery (`sender.app`). La méthode correcte
+        # pour obtenir le logger par défaut de Celery est `get_default_logger`.
+        logger = sender.app.log.get_default_logger()
+        logger.info("Celery Beat a démarré. Lancement de la tâche de rafraîchissement initial du cache.")
+        # On utilise `send_task` pour s'assurer que la tâche est envoyée via le broker.
+        sender.app.send_task('app.tasks.refresh_models_cache_task')
 
     class ContextTask(celery.Task):
         def __call__(self, *args, **kwargs):

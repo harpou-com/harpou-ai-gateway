@@ -1,48 +1,50 @@
-# --- Étape 1: Préparation (Optionnelle mais bonne pratique) ---
-# On utilise une étape pour installer PDM proprement.
-FROM python:3.11-slim as pdm_installer
+# Étape 1: Builder avec PDM
+FROM python:3.11-slim as builder
 
-RUN pip install --no-cache-dir pdm
+# Ajout des outils de build essentiels pour compiler les dépendances C
+# C'est la correction clé pour le problème de 'greenlet'
+RUN apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*
 
-# --- Étape 2: Image finale de production ---
-FROM python:3.11-slim
+# Installer PDM
+RUN pip install pdm
 
+# Copier les fichiers du projet
+COPY pyproject.toml pdm.lock README.md /app/
 WORKDIR /app
 
-# Créer un utilisateur et un groupe non-root pour la sécurité
-RUN addgroup --system --gid 1000 appgroup && adduser --system --create-home --home /home/appuser --uid 1000 --ingroup appgroup appuser
+# Installer les dépendances du projet, sans les dev-dependencies
+RUN pdm install --prod --no-lock
 
-# Copier PDM depuis l'étape précédente
-COPY --from=pdm_installer /usr/local/bin/pdm /usr/local/bin/pdm
+# Étape 2: Image finale
+FROM python:3.11-slim
 
-# Installer les dépendances système nécessaires pour la compilation ET l'exécution
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends build-essential python3-dev libxml2-dev libxslt1-dev procps && \
-    rm -rf /var/lib/apt/lists/*
+# Variables d'environnement
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+ENV PATH="/app/__pypackages__/3.11/bin:$PATH"
 
-# Copier les fichiers de projet et installer les dépendances de production DANS l'étape finale
-COPY pyproject.toml pdm.lock ./
-RUN pdm install --prod --no-lock --no-editable --no-self && \
-    apt-get purge -y --auto-remove build-essential python3-dev libxml2-dev libxslt1-dev && apt-get clean
+# Créer un utilisateur non-root
+RUN addgroup --gid 1000 appgroup && \
+    adduser --uid 1000 --gid 1000 --ingroup appgroup --home /home/appuser --shell /bin/sh --disabled-password appuser
 
-# Copier l'environnement virtuel depuis l'étape de build
-COPY --from=builder /app/__pypackages__/3.11 /app/__pypackages__/3.11
+# Copier les dépendances depuis le builder
+COPY --from=builder /app/__pypackages__ /app/__pypackages__
 
-# Copier le code de l'application
-COPY app ./app
-COPY run.py celery_worker.py worker_launcher.py ./
+# Copier le reste de l'application
+WORKDIR /app
+COPY . /app
 
-# Ajouter le chemin des paquets au PYTHONPATH et le rendre non-bufferisé
-ENV PYTHONPATH=/app/__pypackages__/3.11/lib
-ENV PYTHONUNBUFFERED=1
+# S'assurer que les scripts sont exécutables
+RUN chmod +x /app/entrypoint.dev.sh
 
-# Changer le propriétaire du répertoire de l'application pour l'utilisateur non-root
-RUN chown -R appuser:appgroup /app
+# Changer le propriétaire des fichiers
+RUN chown -R appuser:appgroup /app /home/appuser
 
-# Basculer vers l'utilisateur non-privilégié
+# Passer à l'utilisateur non-root
 USER appuser
 
+# Exposer le port
 EXPOSE 5000
 
-# Commande par défaut pour démarrer le serveur gunicorn avec socketio
-CMD ["/app/__pypackages__/3.11/bin/gunicorn", "--worker-class", "eventlet", "-w", "2", "--bind", "0.0.0.0:5000", "run:app"]
+# Lancer l'application
+CMD ["pdm", "run", "start"]

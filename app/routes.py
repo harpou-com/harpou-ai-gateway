@@ -1,291 +1,140 @@
-"""
-Définition des routes pour l'API de l'application Gateway AI.
-Cette partie du code gère les requêtes entrantes et les traite en fonction de leur contenu.
-"""
-# 1. Imports
-import json
 import logging
-import time
-import uuid
-from flask import Blueprint, Response, current_app, jsonify, request, stream_with_context
+from flask import Blueprint, request, jsonify, Response, stream_with_context, current_app
 from celery.result import AsyncResult
-from celery.utils.log import get_task_logger
-from .extensions import socketio, limiter, celery
-from .tasks import orchestrator_task
-from .llm_connector import _execute_llm_request
-from .cache import get_models
+import time
+import json
+import uuid
+
 from .auth import require_api_key
+from .cache import get_models_from_cache
+from . import llm_connector
+from .tasks import orchestrator_task
 
-# 2. Constantes et Configuration
-logger = get_task_logger(__name__)
+# Configuration du logger
+logger = logging.getLogger(__name__)
 
-bp = Blueprint('main', __name__)
+# Création du Blueprint
+bp = Blueprint('api', __name__)
 
-@bp.route('/')
-def index():
-    """Route de base pour vérifier que le service est en ligne."""
-    return "AI Gateway is running!"
+def generate_openai_stream_chunk(id, model, content):
+    """Génère un chunk de réponse au format streaming OpenAI."""
+    chunk = {
+        "id": id,
+        "object": "chat.completion.chunk",
+        "created": int(time.time()),
+        "model": model,
+        "choices": [
+            {
+                "index": 0,
+                "delta": {"role": "assistant", "content": content},
+                "finish_reason": None
+            }
+        ]
+    }
+    return f"data: {json.dumps(chunk)}\n\n"
 
-@bp.route('/chat', methods=['POST'])
-def chat():
-    """
-    Point d'entrée API qui lance la tâche d'orchestration de manière asynchrone.
-    """
-    data = request.get_json()
-    if not data:
-        return jsonify({"error": "Invalid JSON"}), 400
+def generate_final_openai_stream_chunk(id, model):
+    """Génère le chunk final de la réponse streamée."""
+    chunk = {
+        "id": id,
+        "object": "chat.completion.chunk",
+        "created": int(time.time()),
+        "model": model,
+        "choices": [
+            {
+                "index": 0,
+                "delta": {},
+                "finish_reason": "stop"
+            }
+        ]
+    }
+    return f"data: {json.dumps(chunk)}\n\n"
 
-    user_question = data.get('question')
-    sid = data.get('sid')
-    
-    if not user_question or not sid:
-        return jsonify({'error': "Les champs 'question' et 'sid' sont requis."}), 400
-
-    task = orchestrator_task.delay(user_question, sid)
-
-    return jsonify({
-        "status": "accepted",
-        "task_id": task.id,
-        "message": "La question a été transmise à l'orchestrateur IA pour traitement."
-    }), 202
 
 @bp.route('/v1/models', methods=['GET'])
 @require_api_key
-@limiter.limit("60/minute") # Applique une limite de 60 requêtes par minute
-def list_models():
-    """
-    Découverte des modèles. Retourne une liste de tous les modèles disponibles
-    depuis le cache, au format compatible OpenAI.
-    Le cache est rafraîchi périodiquement par une tâche de fond.
-    """
-    cached_models = get_models()
-    if not cached_models:
-        # Forcer un refresh immédiat si le cache est vide
-        from .services import refresh_and_cache_models
-        cached_models = refresh_and_cache_models()
-        current_app.logger.info("Cache vide, rafraîchissement forcé côté gateway.")
-    current_app.logger.info(f"Service de la liste des modèles depuis le cache ({len(cached_models)} modèles).")
+def get_models():
+    """Retourne la liste des modèles disponibles depuis le cache."""
+    logger.info("Service de la liste des modèles depuis le cache.")
+    models_dict = get_models_from_cache()
+    # Le cache retourne un dictionnaire de modèles. On extrait les valeurs pour la liste.
+    model_list = list(models_dict.values())
+    # Formatage de la réponse pour être compatible avec l'API OpenAI
+    formatted_models = {
+        "object": "list",
+        "data": model_list
+    }
+    return jsonify(formatted_models)
 
-    # Formater la réponse finale pour être compatible avec l'API OpenAI
-    return jsonify({"object": "list", "data": cached_models})
 
 @bp.route('/v1/chat/completions', methods=['POST'])
 @require_api_key
-@limiter.limit("120 per minute") # Applique une limite de 120 requêtes par minute
 def chat_completions():
-    """
-    Point d'entrée pour la compatibilité avec l'API OpenAI (ex: Open WebUI).
-    - Si un SID est fourni (mode asynchrone via WebSocket), lance la tâche et retourne
-      un flux SSE initial pour éviter les timeouts. La réponse finale arrive par WebSocket.
-    - Sinon (mode synchrone), la logique de streaming complète sera implémentée.
-    """
-    # --- Journalisation d'audit (Début) ---
-    audit_logger = logging.getLogger('audit')
-    request_id = f"req_{uuid.uuid4()}"
-    request_timestamp = time.time()
-
-    # Cloner les en-têtes pour pouvoir les sérialiser en JSON
-    headers_for_log = {k: v for k, v in request.headers.items()}
-
-    # 1. Parser le corps de la requête JSON (et le garder pour l'audit)
-    payload = request.get_json()
+    """Point d'entrée principal pour les requêtes de chat."""
+    data = request.json
+    model_id = data.get("model")
+    messages = data.get("messages")
+    stream = data.get("stream", False)
     
-    # Log de la requête initiale
-    audit_logger.info(json.dumps({"request_id": request_id, "timestamp": request_timestamp, "type": "request", "payload": payload, "headers": headers_for_log}))
+    request_id = f"chatcmpl-{uuid.uuid4()}"
 
-    if not payload:
-        return jsonify({"error": {"message": "Corps de la requête invalide (doit être du JSON).", "type": "invalid_request_error"}}), 400
+    if stream:
+        # Si le client demande un stream, on lance la tâche en arrière-plan
+        # et on retourne immédiatement un stream qui sera rempli plus tard.
+        # Pour l'instant, nous allons exécuter la tâche de manière synchrone
+        # puis streamer la réponse finale mot par mot.
+        
+        sid = str(uuid.uuid4())
+        logger.info(f"Requête de stream reçue. Lancement synchrone de l'orchestrateur pour SID {sid}.")
+        
+        # Exécution synchrone de la tâche
+        task_result = orchestrator_task(sid, model_id, messages)
+        
+        def generate():
+            # Simuler un stream mot par mot depuis la réponse finale
+            words = task_result.split()
+            for word in words:
+                yield generate_openai_stream_chunk(request_id, model_id, f" {word}")
+                time.sleep(0.05) # Simule le délai de génération
+            yield generate_final_openai_stream_chunk(request_id, model_id)
+        
+        logger.info("Début du streaming de la réponse finale simulée.")
+        return Response(stream_with_context(generate()), content_type='text/event-stream')
 
-    # 2. Extraire les données essentielles
-    messages = payload.get('messages')
-    model_name = payload.get('model')
-    tools = payload.get('tools')
-    tool_choice = payload.get('tool_choice')
-
-    if not isinstance(messages, list) or not messages:
-        return jsonify({"error": {"message": "Le champ 'messages' est requis et doit être une liste non vide.", "type": "invalid_request_error"}}), 400
-
-    last_message = messages[-1]
-    if not isinstance(last_message, dict) or 'content' not in last_message:
-        return jsonify({"error": {"message": "Le dernier élément de 'messages' doit être un objet avec une clé 'content'.", "type": "invalid_request_error"}}), 400
-
-    user_question = last_message['content']
-
-    # 3. Récupérer l'identifiant de session (sid) depuis les en-têtes HTTP
-    sid = request.headers.get('X-SID')
-
-    # 4. Implémenter la Logique de Routage Intelligente (NOUVEAU FLUX)
-    # L'orchestrateur est déclenché UNIQUEMENT si le modèle est un agent.
-    # Les requêtes avec "tools" pour des modèles standards sont gérées comme des appels OpenAI classiques.
-    is_agentic_request = model_name and model_name.startswith("harpou-agent/")
-    if is_agentic_request:
-        # On a besoin d'un SID pour le mode agent/asynchrone
-        if not sid:
-            return jsonify({"error": {"message": "L'en-tête 'X-SID' est requis pour les requêtes agentiques.", "type": "invalid_request_error"}}), 400
-        current_app.logger.info(f"Lancement d'une requête agentique pour le modèle '{model_name}' avec SID '{sid}'.")
-
-        # Retirer le préfixe de l'agent pour obtenir le vrai nom du modèle
-        agent_prefix = current_app.config.get("AGENT_MODEL_PREFIX", "harpou-agent/")
-        actual_model_name = model_name.replace(agent_prefix, "", 1)
-
-        task = orchestrator_task.delay(messages=messages, sid=sid, model_name=actual_model_name)
-
-        # Retourner une réponse HTTP 202 Accepted formatée comme une réponse OpenAI
-        response_payload = {
-            "id": task.id,
-            "object": "task.accepted",
-            "created": int(time.time()),
-            "model": model_name,
-            "choices": [{
-                "index": 0,
-                "delta": {"role": "assistant", "content": "Tâche agentique lancée..."},
-                "finish_reason": None
-            }]
-        }
-        return jsonify(response_payload), 202
     else:
-        # SINON (modèle standard, flux synchrone/streaming direct)
-        stream = payload.get('stream', False)
+        # Si la requête n'est pas streamée, on attend le résultat complet.
+        sid = str(uuid.uuid4())
+        logger.info(f"Requête synchrone reçue. Lancement de l'orchestrateur pour SID {sid}.")
+        
+        task = orchestrator_task.delay(sid=sid, model_id=model_id, messages=messages)
+        
+        try:
+            # Attendre le résultat de la tâche avec un timeout
+            final_response_content = task.get(timeout=300)
+            logger.info(f"Réponse complète reçue de l'orchestrateur pour SID {sid}.")
 
-        # --- Logique de routage (SIMPLIFIÉE) ---
-        # La logique de routage est maintenant entièrement gérée par get_chat_completion.
-        # On passe simplement le nom du modèle tel que reçu. Si model_name est None,
-        # get_chat_completion utilisera le backend primaire par défaut.
-        # model_to_use = model_name
+            # Construire la réponse complète au format OpenAI
+            response_payload = {
+                "id": request_id,
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": model_id,
+                "choices": [{
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": final_response_content,
+                    },
+                    "finish_reason": "stop"
+                }],
+                "usage": {
+                    "prompt_tokens": 0, # TODO: Calculer le nombre de tokens
+                    "completion_tokens": 0,
+                    "total_tokens": 0
+                }
+            }
+            return jsonify(response_payload)
 
-        # Si aucun modèle n'est spécifié par le client, on doit lever une erreur claire
-        # car la spec OpenAI requiert un nom de modèle.
-        if not model_name:
-            return jsonify({"error": {"message": "Le champ 'model' est requis dans le corps de la requête.", "type": "invalid_request_error"}}), 400
-
-        if stream:
-            # SI stream est true :
-            def generate_stream_response():
-                # --- Pour la journalisation d'audit ---
-                response_parts = []
-                final_finish_reason = None
-                final_response_for_log = None
-                status_code = 200
-
-                try:
-                    response_stream = _execute_llm_request(
-                        model_name=model_name, messages=messages, stream=True,
-                        tools=tools, tool_choice=tool_choice
-                    )
-                    for chunk in response_stream:
-                        # Accumuler les parties pour le log final
-                        if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                            response_parts.append(chunk.choices[0].delta.content)
-                        if chunk.choices and chunk.choices[0].finish_reason:
-                            final_finish_reason = chunk.choices[0].finish_reason
-                        
-                        # Le chunk de la librairie OpenAI est un objet Pydantic, on le convertit en JSON pour le SSE
-                        yield f"data: {chunk.model_dump_json()}\n\n"
-                    yield "data: [DONE]\n\n"
-                except Exception as e:
-                    status_code = 500
-                    current_app.logger.error(f"Erreur lors du streaming de la réponse LLM: {e}", exc_info=True)
-                    error_payload = {"error": {"message": str(e), "type": "api_error"}}
-                    final_response_for_log = error_payload # Log this error
-                    yield f"data: {json.dumps(error_payload)}\n\n"
-                    yield "data: [DONE]\n\n"
-                finally:
-                    # --- Journalisation d'audit (Réponse streamée) ---
-                    # Construire la réponse finale uniquement si elle n'a pas déjà été définie par une erreur
-                    if final_response_for_log is None:
-                        final_content = "".join(response_parts)
-                        final_response_for_log = {
-                            "id": f"chatcmpl-stream-{request_id}",
-                            "object": "chat.completion",
-                            "model": model_name,
-                            "choices": [{
-                                "index": 0,
-                                "message": {"role": "assistant", "content": final_content},
-                                "finish_reason": final_finish_reason
-                            }]
-                        }
-                    
-                    audit_logger.info(json.dumps({
-                        "request_id": request_id,
-                        "timestamp": time.time(),
-                        "type": "response",
-                        "response": final_response_for_log,
-                        "status_code": status_code
-                    }))
-            return Response(stream_with_context(generate_stream_response()), mimetype='text/event-stream')
-        else:
-            # SINON (stream est false ou absent, réponse JSON complète)
-            # C'est ici que nous lançons la tâche agentique et retournons un ID de tâche.
-            
-            # Générer un SID si aucun n'est fourni (pour les clients non-websocket)
-            if not sid:
-                sid = str(uuid.uuid4())
-                current_app.logger.info(f"Génération d'un SID ({sid}) pour une requête API synchrone.")
-
-            task = orchestrator_task.delay(messages=messages, sid=sid, model_name=model_name)
-
-            # On retourne une réponse qui indique que la tâche est acceptée et fournit un moyen de la suivre.
-            return jsonify({
-                "task_id": task.id,
-                "status_endpoint": f"/v1/tasks/status/{task.id}",
-                "message": "La tâche a été acceptée et est en cours de traitement. Veuillez sonder l'endpoint de statut pour le résultat."
-            }), 202
-            
-            """
-            try:
-                response_obj = _execute_llm_request(
-                    model_name=model_name, messages=messages, stream=False,
-                    tools=tools, tool_choice=tool_choice
-                )
-                # Le connecteur retourne un objet Pydantic compatible OpenAI.
-                # La méthode .to_json() le sérialise directement au format attendu.
-                response_for_log = json.loads(response_obj.to_json())
-                audit_logger.info(json.dumps({
-                    "request_id": request_id, 
-                    "timestamp": time.time(), 
-                    "type": "response", 
-                    "response": response_for_log,
-                    "status_code": 200
-                }))
-                return Response(response_obj.to_json(), mimetype='application/json', status=200)
-            except Exception as e:
-                current_app.logger.error(f"Erreur lors de la récupération de la complétion LLM: {e}", exc_info=True)
-                error_response = {"error": {"message": str(e), "type": "api_error"}}
-                audit_logger.info(json.dumps({
-                    "request_id": request_id,
-                    "timestamp": time.time(),
-                    "type": "response",
-                    "response": error_response,
-                    "status_code": 500
-                }))
-                return jsonify(error_response), 500
-            """
-
-@bp.route('/v1/tasks/status/<task_id>', methods=['GET'])
-@require_api_key
-@limiter.limit("120 per minute")
-def get_task_status(task_id):
-    """
-    Sonde le statut d'une tâche Celery asynchrone.
-    Cet endpoint est utilisé par les clients pour suivre la progression
-    des tâches de longue durée, comme les requêtes agentiques.
-    """
-    task = AsyncResult(task_id, app=celery)
-
-    if task.state in ['PENDING', 'STARTED']:
-        # PENDING peut aussi signifier que le task_id est inconnu du backend de résultats.
-        # C'est un comportement normal de Celery.
-        response = {"task_id": task_id, "status": "in_progress", "message": "Tâche en cours de traitement..."}
-        return jsonify(response)
-    
-    if task.state == 'SUCCESS':
-        # Utiliser un timeout court sur .get() est une bonne pratique, même si le statut est SUCCESS.
-        response = {"task_id": task_id, "status": "completed", "result": task.get(timeout=1)}
-        return jsonify(response)
-
-    if task.state in ['FAILURE', 'REVOKED']:
-        response = {"task_id": task_id, "status": "failed", "error": str(task.info)}
-        return jsonify(response), 500
-
-    # Cas pour un état inattendu
-    return jsonify({"task_id": task_id, "status": task.state})
+        except Exception as e:
+            logger.error(f"Erreur lors de la récupération du résultat de la tâche Celery pour SID {sid}: {e}", exc_info=True)
+            return jsonify({"error": "Une erreur interne est survenue lors du traitement de votre requête."}), 500
