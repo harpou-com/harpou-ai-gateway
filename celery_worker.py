@@ -26,6 +26,12 @@ def init_celery_with_flask_app(app):
     """
     celery.conf.update(app.config) # Met à jour la configuration Celery à partir de la config Flask
 
+    # --- Validation de la configuration ---
+    # S'assurer qu'un broker est bien configuré pour éviter que Celery ne se rabatte
+    # sur son broker par défaut (AMQP) en silence.
+    if not celery.conf.broker_url:
+        raise ValueError("Le broker Celery n'est pas configuré. Veuillez définir REDIS_URL ou CELERY_BROKER_URL.")
+
     # --- Configuration de Celery Beat pour les tâches périodiques ---
     update_interval_minutes = int(app.config.get('llm_cache_update_interval_minutes', 5))
     app.logger.info(f"Configuration de la tâche de rafraîchissement du cache des modèles toutes les {update_interval_minutes} minutes.")

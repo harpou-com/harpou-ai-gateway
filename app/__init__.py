@@ -99,33 +99,8 @@ def create_app(config_object=None, init_socketio=True):
     # Priorité : 1. Secret Docker > 2. Variables d'environnement > 3. config.json > 4. Valeurs par défaut
 
     # 4. Définir les valeurs par défaut pour un environnement de développement robuste.
-    # Celles-ci seront surchargées par config.json et les variables d'environnement.
-    redis_url = os.environ.get('REDIS_URL')
-    cache_type = 'RedisCache' if redis_url else 'SimpleCache'
-
-    config = {
-        # Si Redis est disponible, l'utiliser pour le cache pour le partage entre le worker et l'app web.
-        # Sinon, utiliser un cache en mémoire simple (adapté au dev sans worker).
-        'CACHE_TYPE': cache_type,
-        'CACHE_REDIS_URL': redis_url,
-        'RATELIMIT_STORAGE_URI': redis_url or 'memory://' # Utilise Redis si disponible.
-    }
-    if cache_type == 'SimpleCache' and os.environ.get("APP_ENV") != "testing":
-        app.logger.warning("La variable d'environnement REDIS_URL n'est pas définie. Le cache utilise 'SimpleCache' (en mémoire). "
-                           "Cela peut causer des incohérences si vous utilisez des workers Celery.")
-
-    # Le chemin racine du projet est un niveau au-dessus du répertoire de l'application (app.root_path)
-    project_root = os.path.abspath(os.path.join(app.root_path, os.pardir))
-    # 3. Charger la configuration depuis config.json (racine du projet)
-    config_path = os.path.join(project_root, 'config', 'config.json')
-
-    app.logger.info(f"Recherche du fichier de configuration à l'emplacement : {config_path}")
-    if os.path.exists(config_path):
-        with open(config_path) as config_file:
-            config.update(json.load(config_file))
-        app.logger.info("Fichier config.json chargé avec succès.")
-    else:
-        app.logger.warning("Fichier config.json non trouvé. Utilisation des valeurs par défaut et des variables d'environnement.")
+    # On commence avec un dictionnaire de configuration vide qui sera rempli par couches successives.
+    config = {}
 
     # 2. Logique de surcharge par variables d'environnement
     app.logger.info("Vérification des variables d'environnement pour surcharger la configuration...")
@@ -179,6 +154,23 @@ def create_app(config_object=None, init_socketio=True):
             if config.get(config_key) != env_value:
                 app.logger.info(f"  -> Surcharge de '{config_key}' avec la variable d'environnement '{env_key}'.")
             config[config_key] = env_value
+
+    # Logique de surcharge spécifique pour REDIS_URL (a la priorité la plus haute pour l'infra)
+    if redis_url_from_env := os.environ.get('REDIS_URL'):
+        app.logger.info(f"La variable d'environnement REDIS_URL est définie. Elle configure tous les services Redis.")
+        config['CELERY_BROKER_URL'] = redis_url_from_env
+        config['CELERY_RESULT_BACKEND'] = redis_url_from_env
+        config['CACHE_REDIS_URL'] = redis_url_from_env
+        config['RATELIMIT_STORAGE_URI'] = redis_url_from_env
+        config['CACHE_TYPE'] = 'RedisCache'
+    elif not config.get('CELERY_BROKER_URL'):
+        # Si, après toutes les surcharges, aucune URL Redis n'est définie, on passe en mode dégradé.
+        app.logger.warning("Aucune URL Redis n'est configurée (ni via REDIS_URL, ni via config.json).")
+        app.logger.warning("Le cache, le rate-limiter et Celery ne fonctionneront pas avec Redis.")
+        config['CACHE_TYPE'] = 'SimpleCache'
+        config.setdefault('RATELIMIT_STORAGE_URI', 'memory://')
+
+
     
     # Scénario 3: Surcharge de la configuration des clés API
     # Priorité 1: Clé unique simple via API_KEY
