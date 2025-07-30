@@ -7,27 +7,58 @@ from flask_limiter.util import get_remote_address
 from flask import request, g, current_app
 from flask_caching import Cache # <--- AJOUT POUR LE CACHE
 
-def rate_limit_identifier():
+def _get_key_info_from_request():
     """
-    Identifie une requête soit par sa clé API, soit par son adresse IP.
-    La clé API est prioritaire pour la limitation de débit.
+    Helper function to extract API key info from the current request.
+    It memoizes the result in `g` to avoid redundant lookups within the same request.
     """
+    # Check if we've already done the lookup for this request
+    if hasattr(g, 'api_key_info'):
+        return g.api_key_info
+
+    # Perform the lookup
+    provided_key = None
     auth_header = request.headers.get('Authorization')
     if auth_header and auth_header.startswith('Bearer '):
-        # Utilise la clé API comme identifiant pour le rate limiting
-        return auth_header.split(' ', 1)[1]
-    # Si pas de clé, utilise l'adresse IP comme fallback
+        provided_key = auth_header.split(' ', 1)[1]
+
+    valid_keys_dict = current_app.config.get('API_KEYS_DICT', {})
+    
+    # If no keys are configured at all, treat as public access.
+    if not valid_keys_dict:
+        g.api_key_info = {"owner": "public_access"}
+        return g.api_key_info
+
+    key_info = valid_keys_dict.get(provided_key)
+    if key_info:
+        g.api_key_info = key_info
+    else:
+        # Invalid or no key provided
+        g.api_key_info = {"owner": "invalid_key"}
+    
+    return g.api_key_info
+
+def rate_limit_identifier():
+    """
+    Identifies a request by the API key's owner for rate-limiting.
+    Falls back to the remote IP address if the key is invalid or absent.
+    Using the owner is more secure than using the key itself.
+    """
+    key_info = _get_key_info_from_request()
+    if key_info.get("owner") not in ["public_access", "invalid_key"]:
+        return key_info["owner"]
     return get_remote_address()
 
 def get_rate_limit_from_key():
     """
-    Retourne la limite de taux spécifique à la clé API, ou la limite par défaut.
+    Returns the rate limit specific to the API key, or the default limit.
+    This is now reliable because _get_key_info_from_request is called first.
     """
-    # g.api_key_info est défini par le décorateur @require_api_key
-    if hasattr(g, 'api_key_info') and g.api_key_info.get('rate_limit'):
-        return g.api_key_info['rate_limit']
-    # Sinon, retourne la limite par défaut de l'application
-    return current_app.config.get("RATELIMIT_DEFAULT")
+    key_info = _get_key_info_from_request()
+    return key_info.get('rate_limit') or current_app.config.get("RATELIMIT_DEFAULT")
+
+# Initialisation de Celery. L'instance est définie ici pour être partagée par toute l'application.
+celery = Celery(__name__, include=['app.tasks'])
 
 # Initialisation de SocketIO
 socketio = SocketIO(async_mode='eventlet')

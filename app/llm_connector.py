@@ -166,7 +166,7 @@ def get_chat_completion(
 
     # Lancer la tâche d'orchestration et attendre son résultat final (appel bloquant).
     # On passe la liste complète des messages pour préserver l'historique de la conversation.
-    async_result = tasks.orchestrator_task.delay(messages=messages, sid=sid, model_name=model_name)
+    async_result = tasks.orchestrator_task.delay(sid=sid, conversation=messages, model_id=model_name)
     final_answer_str = async_result.get(propagate=True)
 
     # Construire un objet de réponse ChatCompletion standard.
@@ -342,5 +342,11 @@ def _execute_llm_request(
             raise e # Relancer la dernière exception de connexion
 
     except openai.APIError as e:
-        current_app.logger.error(f"Erreur d'API lors de l'appel à '{backend_config.get('type')}': {e}")
-        raise
+        # Vérifier si c'est l'erreur "tools not supported", qui est une condition gérée par l'orchestrateur.
+        if "does not support tools" in str(e).lower():
+            # On la journalise comme un avertissement, car ce n'est pas une erreur fatale pour le système.
+            current_app.logger.warning(f"Le backend '{backend_config.get('type')}' a signalé que le modèle ne supporte pas les outils: {e}")
+        else:
+            # Pour toutes les autres erreurs d'API, on journalise comme une erreur critique.
+            current_app.logger.error(f"Erreur d'API lors de l'appel à '{backend_config.get('type')}': {e}")
+        raise # On relance toujours l'exception pour que l'appelant (l'orchestrateur) puisse la gérer.

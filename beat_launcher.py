@@ -8,8 +8,7 @@ from app import create_app
 from celery_worker import init_celery_with_flask_app
 
 # 1. Créer une instance de l'application Flask pour fournir le contexte et la configuration.
-#    init_socketio=False est important car le service Beat ne gère pas les requêtes web.
-app = create_app(init_socketio=False)
+app = create_app()
 
 # 2. Initialiser Celery avec la configuration et le contexte de l'application Flask.
 #    Ceci configure le broker, le backend, et surtout le `beat_schedule`.

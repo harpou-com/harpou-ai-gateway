@@ -73,9 +73,15 @@ def chat_completions():
     """Point d'entrée principal pour les requêtes de chat."""
     data = request.json
     model_id = data.get("model")
-    messages = data.get("messages")
+    conversation = data.get("messages")
     stream = data.get("stream", False)
-    
+
+    # Validation des paramètres essentiels
+    if not model_id:
+        return jsonify({"error": {"message": "Le paramètre 'model' est manquant.", "type": "invalid_request_error"}}), 400
+    if not conversation:
+        return jsonify({"error": {"message": "Le paramètre 'messages' est manquant.", "type": "invalid_request_error"}}), 400
+
     request_id = f"chatcmpl-{uuid.uuid4()}"
 
     if stream:
@@ -87,8 +93,8 @@ def chat_completions():
         sid = str(uuid.uuid4())
         logger.info(f"Requête de stream reçue. Lancement synchrone de l'orchestrateur pour SID {sid}.")
         
-        # Exécution synchrone de la tâche
-        task_result = orchestrator_task(sid, model_id, messages)
+        # Exécution synchrone de la tâche. L'erreur 'NameError' est corrigée car 'conversation' est maintenant défini.
+        task_result = orchestrator_task(sid=sid, conversation=conversation, model_id=model_id)
         
         def generate():
             # Simuler un stream mot par mot depuis la réponse finale
@@ -106,7 +112,7 @@ def chat_completions():
         sid = str(uuid.uuid4())
         logger.info(f"Requête synchrone reçue. Lancement de l'orchestrateur pour SID {sid}.")
         
-        task = orchestrator_task.delay(sid=sid, model_id=model_id, messages=messages)
+        task = orchestrator_task.delay(sid=sid, conversation=conversation, model_id=model_id)
         
         try:
             # Attendre le résultat de la tâche avec un timeout

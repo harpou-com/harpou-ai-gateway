@@ -6,8 +6,7 @@ from app import create_app
 from celery_worker import init_celery_with_flask_app
 
 # 1. Créer une instance de l'application Flask pour fournir le contexte.
-#    init_socketio=False est important car les workers ne gèrent pas les requêtes web.
-app = create_app(init_socketio=False)
+app = create_app()
 
 # 2. Initialiser Celery avec la configuration et le contexte de l'application Flask.
 #    L'objet 'celery' (défini dans celery_worker.py) est maintenant configuré.

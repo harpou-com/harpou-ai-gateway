@@ -340,15 +340,19 @@ class Pipe:
             cleaned_model_id = self._clean_model_id(raw_model_id)
             log.info(f"Cleaned model ID: {cleaned_model_id}")
 
-            # IMPORTANT: Mettre à jour le corps de la requête avec l'ID nettoyé pour le transfert
-            body['model'] = cleaned_model_id
-
-            # Puisque nous n'exposons que des modèles agents, cette condition devrait toujours être vraie.
-            # Nous la gardons pour la robustesse.
+            # Déterminer si la requête est pour un modèle agentique et retirer le préfixe si c'est le cas.
             if cleaned_model_id.startswith(self.valves.AGENT_MODEL_PREFIX):
+                # Retirer le préfixe pour obtenir l'ID de modèle que le gateway attend.
+                gateway_model_id = cleaned_model_id.removeprefix(self.valves.AGENT_MODEL_PREFIX)
+                log.info(f"Agentic model detected. Stripping prefix. Gateway model ID: '{gateway_model_id}'")
+                # Mettre à jour le corps de la requête avec l'ID de modèle correct.
+                body['model'] = gateway_model_id
+                
                 async for chunk in self._handle_agentic_request(body, __user__):
                     yield chunk
             else:
+                # Mettre à jour le corps de la requête avec l'ID nettoyé pour le transfert direct.
+                body['model'] = cleaned_model_id
                 # Ce bloc n'est techniquement plus atteignable mais est conservé par sécurité.
                 log.warning(f"Requête reçue pour un modèle non-agent '{cleaned_model_id}', qui ne devrait pas être listé. Proxying quand même.")
                 async for chunk in self._handle_proxy_request(body):

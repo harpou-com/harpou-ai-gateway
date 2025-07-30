@@ -2,17 +2,12 @@
 import eventlet # DOIT ÊTRE LA PREMIÈRE IMPORTATION SI UTILISATION DU MONKEY PATCHING
 eventlet.monkey_patch()
 
-from celery import Celery
+from app.extensions import celery # Importer l'instance Celery partagée
 from celery.signals import beat_init
 import os
+import logging
 
-# Initialiser l'application Celery
-celery = Celery(
-    'ai_gateway',
-    broker=None, # Le broker sera configuré par l'application Flask
-    backend=None, # Le backend sera configuré par l'application Flask
-    include=['app.tasks'] # Suppose que les tâches sont définies dans app/tasks.py
-)
+logger = logging.getLogger(__name__)
 
 # Fonction pour initialiser l'application Celery avec le contexte de l'application Flask.
 # Cette fonction doit être appelée par l'application web Flask (run.py)
@@ -24,7 +19,10 @@ def init_celery_with_flask_app(app):
     Ceci doit être appelé par l'application web Flask (run.py)
     et par le lanceur de worker Celery (worker_launcher.py).
     """
+    # Mettre à jour la configuration de l'instance Celery partagée à partir de la config Flask
     celery.conf.update(app.config) # Met à jour la configuration Celery à partir de la config Flask
+    # Empêcher Celery de détourner la configuration du logger racine pour éviter les logs dupliqués.
+    celery.conf.worker_hijack_root_logger = False
 
     # --- Validation de la configuration ---
     # S'assurer qu'un broker est bien configuré pour éviter que Celery ne se rabatte
@@ -45,7 +43,7 @@ def init_celery_with_flask_app(app):
 
     @beat_init.connect(weak=False)
     def on_beat_init(sender, **kwargs):
-        logger = sender.app.log.get_default_logger()
+        # Utiliser le logger du module pour une meilleure cohérence avec le reste de l'application.
         logger.info("Celery Beat a démarré. Lancement de la tâche de rafraîchissement initial du cache.")
         sender.app.send_task('app.tasks.refresh_models_cache_task')
 

@@ -53,6 +53,12 @@ def configure_logging(app):
     root_logger.addHandler(file_handler)
     root_logger.setLevel(log_level)
 
+    # On ajoute systématiquement un handler pour la console afin de voir les logs
+    # en temps réel, que ce soit en développement ou en production.
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+
     if invalid_rotation_value is not None:
         root_logger.warning(
             f"Valeur invalide '{invalid_rotation_value}' pour LOG_ROTATION_DAYS. "
@@ -85,10 +91,9 @@ def configure_audit_logging(app):
     audit_logger.addHandler(audit_handler)
     audit_logger.propagate = False # Empêche les logs d'audit de remonter au logger racine.
 
-def create_app(config_object=None, init_socketio=True):
+def create_app(config_object=None):
     """
     Application Factory : initialise Flask, Celery, SocketIO, Blueprints et événements.
-    - init_socketio : True pour serveur web, False pour worker Celery
     """
 
     app = Flask(__name__)
@@ -284,20 +289,19 @@ def create_app(config_object=None, init_socketio=True):
     # Les limites sont lues depuis la configuration de l'application (ex: RATELIMIT_DEFAULT)
     limiter.init_app(app)
 
-    # Initialiser SocketIO (uniquement pour le serveur web)
-    if init_socketio:
-        # La configuration (message_queue, etc.) est lue depuis app.config
-        socketio.init_app(
-            app, 
-            cors_allowed_origins="*" # Autorise toutes les origines
-        )
+    # Initialiser SocketIO. C'est nécessaire pour le serveur web ET pour les workers Celery
+    # afin qu'ils puissent communiquer via la file d'attente de messages (Redis).
+    # La configuration (message_queue, etc.) est lue depuis app.config.
+    socketio.init_app(
+        app,
+        cors_allowed_origins="*" # Autorise toutes les origines pour les connexions WebSocket
+    )
 
     # Enregistrer les Blueprints
     from . import routes
     app.register_blueprint(routes.bp)
 
     # Enregistrer les gestionnaires d'événements SocketIO
-    if init_socketio:
-        from . import events  # noqa: F401 (force l'import pour enregistrer les handlers)
+    from . import events  # noqa: F401 (force l'import pour enregistrer les handlers)
 
     return app
