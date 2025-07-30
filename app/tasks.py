@@ -18,7 +18,8 @@ def refresh_models_cache_task():
     """
     logger.info("Exécution de la tâche de rafraîchissement du cache des modèles.")
     try:
-        services.refresh_and_cache_models()
+        models_count = services.refresh_and_cache_models()
+        logger.info(f"Tâche de rafraîchissement terminée. {len(models_count)} modèles ont été trouvés et mis en cache.")
     except Exception as e:
         logger.error(f"Erreur lors de l'exécution de la tâche de rafraîchissement du cache: {e}", exc_info=True)
 

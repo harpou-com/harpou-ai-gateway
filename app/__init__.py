@@ -102,6 +102,21 @@ def create_app(config_object=None, init_socketio=True):
     # On commence avec un dictionnaire de configuration vide qui sera rempli par couches successives.
     config = {}
 
+    # Couche 1 : Charger la configuration depuis config.json (s'il existe)
+    project_root = os.path.abspath(os.path.join(app.root_path, os.pardir))
+    config_path = os.path.join(project_root, 'config', 'config.json')
+    app.logger.info(f"Recherche du fichier de configuration à l'emplacement : {config_path}")
+    if os.path.exists(config_path):
+        try:
+            with open(config_path) as config_file:
+                config.update(json.load(config_file))
+            app.logger.info("Fichier config.json chargé avec succès.")
+        except json.JSONDecodeError:
+            app.logger.error(f"Erreur de décodage du fichier JSON : {config_path}")
+    else:
+        app.logger.warning("Fichier config.json non trouvé. Utilisation des valeurs par défaut et des variables d'environnement.")
+
+
     # 2. Logique de surcharge par variables d'environnement
     app.logger.info("Vérification des variables d'environnement pour surcharger la configuration...")
     
@@ -155,21 +170,6 @@ def create_app(config_object=None, init_socketio=True):
                 app.logger.info(f"  -> Surcharge de '{config_key}' avec la variable d'environnement '{env_key}'.")
             config[config_key] = env_value
 
-    # Logique de surcharge spécifique pour REDIS_URL (a la priorité la plus haute pour l'infra)
-    if redis_url_from_env := os.environ.get('REDIS_URL'):
-        app.logger.info(f"La variable d'environnement REDIS_URL est définie. Elle configure tous les services Redis.")
-        config['CELERY_BROKER_URL'] = redis_url_from_env
-        config['CELERY_RESULT_BACKEND'] = redis_url_from_env
-        config['CACHE_REDIS_URL'] = redis_url_from_env
-        config['RATELIMIT_STORAGE_URI'] = redis_url_from_env
-        config['CACHE_TYPE'] = 'RedisCache'
-    elif not config.get('CELERY_BROKER_URL'):
-        # Si, après toutes les surcharges, aucune URL Redis n'est définie, on passe en mode dégradé.
-        app.logger.warning("Aucune URL Redis n'est configurée (ni via REDIS_URL, ni via config.json).")
-        app.logger.warning("Le cache, le rate-limiter et Celery ne fonctionneront pas avec Redis.")
-        config['CACHE_TYPE'] = 'SimpleCache'
-        config.setdefault('RATELIMIT_STORAGE_URI', 'memory://')
-
 
     
     # Scénario 3: Surcharge de la configuration des clés API
@@ -215,6 +215,20 @@ def create_app(config_object=None, init_socketio=True):
             app.logger.warning(f"Le fichier secret '{secret_path}' n'a pas été trouvé.")
     elif secret_key_value:
         secret_key_source = "config.json ou variable d'environnement"
+
+    # Couche finale de surcharge : REDIS_URL a la priorité absolue pour l'infrastructure
+    if redis_url_from_env := os.environ.get('REDIS_URL'):
+        app.logger.info(f"La variable d'environnement REDIS_URL est définie. Elle surcharge toute autre configuration Redis.")
+        config['CELERY_BROKER_URL'] = redis_url_from_env
+        config['CELERY_RESULT_BACKEND'] = redis_url_from_env
+        config['CACHE_REDIS_URL'] = redis_url_from_env
+        config['RATELIMIT_STORAGE_URI'] = redis_url_from_env
+        config['CACHE_TYPE'] = 'RedisCache'
+    elif not config.get('CELERY_BROKER_URL'):
+        # Si, après toutes les surcharges, aucune URL Redis n'est définie, on passe en mode dégradé.
+        app.logger.warning("Aucune URL Redis n'est configurée. Le cache, le rate-limiter et Celery ne fonctionneront pas avec Redis.")
+        config['CACHE_TYPE'] = 'SimpleCache'
+        config.setdefault('RATELIMIT_STORAGE_URI', 'memory://')
 
     # 4. Appliquer la configuration finale
     config['SECRET_KEY'] = secret_key_value # Clé Flask
