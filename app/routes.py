@@ -1,6 +1,7 @@
 import logging
 from flask import Blueprint, request, jsonify, Response, stream_with_context, current_app
 from celery.result import AsyncResult
+from app.extensions import celery # Import de l'instance Celery
 import time
 import json
 import uuid
@@ -92,33 +93,50 @@ def get_task_status(task_id):
 @bp.route('/v1/chat/completions', methods=['POST'])
 @require_api_key
 def chat_completions():
-    """Point d'entrée principal pour les requêtes de chat."""
+    """
+    Point d'entrée principal pour les requêtes de chat.
+    Gère les flux synchrones (clients API standards) et asynchrones (client WebUI).
+    """
     data = request.json
     model_id = data.get("model")
     conversation = data.get("messages")
     stream = data.get("stream", False)
 
-    # Validation des paramètres essentiels
     if not model_id:
         return jsonify({"error": {"message": "Le paramètre 'model' est manquant.", "type": "invalid_request_error"}}), 400
     if not conversation:
         return jsonify({"error": {"message": "Le paramètre 'messages' est manquant.", "type": "invalid_request_error"}}), 400
 
-    request_id = f"chatcmpl-{uuid.uuid4()}"
+    # Déterminer le type de flux en fonction de la présence de l'en-tête X-SID.
+    # Cet en-tête est ajouté par le Pipe de l'agent WebUI.
+    is_async_flow = 'X-SID' in request.headers
 
-    # Le Pipe agentique attend un comportement asynchrone.
-    # Nous lançons la tâche et retournons immédiatement un ID de tâche.
-    sid = str(uuid.uuid4())
-    logger.info(f"Requête agentique reçue. Lancement de la tâche en arrière-plan pour SID {sid}.")
-    
-    task = orchestrator_task.delay(sid=sid, conversation=conversation, model_id=model_id)
-    
-    # C'est la réponse que le Pipe attend pour commencer le polling.
-    response_payload = {
-        "id": task.id,
-        "message": "Task accepted and is running in the background."
-    }
-    
-    # On retourne un statut 202 Accepted pour indiquer que la requête est acceptée
-    # mais pas encore terminée.
-    return jsonify(response_payload), 202
+    if is_async_flow:
+        # --- FLUX ASYNCHRONE (pour le client WebUI) ---
+        sid = request.headers.get('X-SID')
+        logger.info(f"Flux asynchrone détecté pour SID {sid}. Lancement de la tâche en arrière-plan.")
+        
+        task = orchestrator_task.delay(sid=sid, conversation=conversation, model_id=model_id)
+        
+        response_payload = {
+            "id": task.id,
+            "message": "Task accepted and is running in the background."
+        }
+        return jsonify(response_payload), 202
+    else:
+        # --- FLUX SYNCHRONE (pour les clients API OpenAI standards) ---
+        logger.info("Flux synchrone détecté. Traitement de la requête de manière bloquante.")
+        
+        try:
+            # Cette fonction gère l'appel à la tâche, l'attente du résultat,
+            # et le formatage de la réponse en un objet ChatCompletion compatible.
+            response_obj = llm_connector.get_chat_completion(
+                model_name=model_id,
+                messages=conversation,
+                stream=stream
+            )
+            # .model_dump() est la méthode Pydantic pour convertir l'objet en dictionnaire
+            return jsonify(response_obj.model_dump())
+        except Exception as e:
+            logger.error(f"Erreur lors du traitement synchrone de la tâche: {e}", exc_info=True)
+            return jsonify({"error": {"message": "Une erreur interne est survenue lors du traitement de votre requête.", "type": "internal_server_error"}}), 500
