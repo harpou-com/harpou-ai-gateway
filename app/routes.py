@@ -66,6 +66,28 @@ def get_models():
     }
     return jsonify(formatted_models)
 
+@bp.route('/v1/tasks/status/<task_id>', methods=['GET'])
+@require_api_key
+def get_task_status(task_id):
+    """
+    Sonde le statut d'une tâche Celery. C'est l'endpoint que le Pipe va appeler.
+    """
+    # Utiliser l'instance celery de l'application pour créer l'objet de résultat
+    task = AsyncResult(task_id, app=celery)
+    
+    if task.state == 'PENDING' or task.state == 'STARTED':
+        response = {'status': 'in_progress'}
+    elif task.state == 'SUCCESS':
+        response = {'status': 'completed', 'result': task.result}
+    elif task.state == 'FAILURE':
+        # Renvoyer une information d'erreur propre
+        response = {'status': 'failed', 'error': str(task.info)}
+    else:
+        response = {'status': 'unknown', 'state': task.state}
+        
+    logger.debug(f"Polling pour la tâche {task_id}: Statut {response.get('status')}")
+    return jsonify(response)
+
 
 @bp.route('/v1/chat/completions', methods=['POST'])
 @require_api_key
@@ -84,63 +106,19 @@ def chat_completions():
 
     request_id = f"chatcmpl-{uuid.uuid4()}"
 
-    if stream:
-        # Si le client demande un stream, on lance la tâche en arrière-plan
-        # et on retourne immédiatement un stream qui sera rempli plus tard.
-        # Pour l'instant, nous allons exécuter la tâche de manière synchrone
-        # puis streamer la réponse finale mot par mot.
-        
-        sid = str(uuid.uuid4())
-        logger.info(f"Requête de stream reçue. Lancement synchrone de l'orchestrateur pour SID {sid}.")
-        
-        # Exécution synchrone de la tâche. L'erreur 'NameError' est corrigée car 'conversation' est maintenant défini.
-        task_result = orchestrator_task(sid=sid, conversation=conversation, model_id=model_id)
-        
-        def generate():
-            # Simuler un stream mot par mot depuis la réponse finale
-            words = task_result.split()
-            for word in words:
-                yield generate_openai_stream_chunk(request_id, model_id, f" {word}")
-                time.sleep(0.05) # Simule le délai de génération
-            yield generate_final_openai_stream_chunk(request_id, model_id)
-        
-        logger.info("Début du streaming de la réponse finale simulée.")
-        return Response(stream_with_context(generate()), content_type='text/event-stream')
-
-    else:
-        # Si la requête n'est pas streamée, on attend le résultat complet.
-        sid = str(uuid.uuid4())
-        logger.info(f"Requête synchrone reçue. Lancement de l'orchestrateur pour SID {sid}.")
-        
-        task = orchestrator_task.delay(sid=sid, conversation=conversation, model_id=model_id)
-        
-        try:
-            # Attendre le résultat de la tâche avec un timeout
-            final_response_content = task.get(timeout=300)
-            logger.info(f"Réponse complète reçue de l'orchestrateur pour SID {sid}.")
-
-            # Construire la réponse complète au format OpenAI
-            response_payload = {
-                "id": request_id,
-                "object": "chat.completion",
-                "created": int(time.time()),
-                "model": model_id,
-                "choices": [{
-                    "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": final_response_content,
-                    },
-                    "finish_reason": "stop"
-                }],
-                "usage": {
-                    "prompt_tokens": 0, # TODO: Calculer le nombre de tokens
-                    "completion_tokens": 0,
-                    "total_tokens": 0
-                }
-            }
-            return jsonify(response_payload)
-
-        except Exception as e:
-            logger.error(f"Erreur lors de la récupération du résultat de la tâche Celery pour SID {sid}: {e}", exc_info=True)
-            return jsonify({"error": "Une erreur interne est survenue lors du traitement de votre requête."}), 500
+    # Le Pipe agentique attend un comportement asynchrone.
+    # Nous lançons la tâche et retournons immédiatement un ID de tâche.
+    sid = str(uuid.uuid4())
+    logger.info(f"Requête agentique reçue. Lancement de la tâche en arrière-plan pour SID {sid}.")
+    
+    task = orchestrator_task.delay(sid=sid, conversation=conversation, model_id=model_id)
+    
+    # C'est la réponse que le Pipe attend pour commencer le polling.
+    response_payload = {
+        "id": task.id,
+        "message": "Task accepted and is running in the background."
+    }
+    
+    # On retourne un statut 202 Accepted pour indiquer que la requête est acceptée
+    # mais pas encore terminée.
+    return jsonify(response_payload), 202
