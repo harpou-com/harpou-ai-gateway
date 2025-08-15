@@ -23,6 +23,9 @@ def init_celery_with_flask_app(app):
     celery.conf.update(app.config) # Met à jour la configuration Celery à partir de la config Flask
     # Empêcher Celery de détourner la configuration du logger racine pour éviter les logs dupliqués.
     celery.conf.worker_hijack_root_logger = False
+    # Désactiver la redirection des flux standards (stdout/stderr) par Celery,
+    # car nous supposons que la configuration de logging de Flask s'en charge déjà.
+    celery.conf.worker_redirect_stdouts = False
 
     # --- Validation de la configuration ---
     # S'assurer qu'un broker est bien configuré pour éviter que Celery ne se rabatte
