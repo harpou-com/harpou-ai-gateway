@@ -1,47 +1,48 @@
 {
     "llm_backends": [
         {
-            "name": "ollama_local",
+            "name": "ollama",
             "type": "ollama",
-            "base_url": "http://localhost:11434",
-            "default_model": "llama3",
+            "base_url": "http://aipc-01.harpou.com:11434/v1",
+            "default_model": "harpou/llama3.1-8b:latest",
             "api_key": "NA",
+            "timeout": 600,
             "llm_auto_load": true
         },
         {
-            "name": "openai_cloud",
-            "type": "openai",
-            "base_url": "https://api.openai.com/v1",
-            "default_model": "gpt-4-turbo",
-            "api_key": "YOUR_OPENAI_API_KEY_HERE",
-            "llm_auto_load": false
-        },
-        {
-            "name": "lm_studio_local",
-            "type": "openai",
-            "base_url": "http://localhost:1234/v1",
-            "default_model": "lmstudio-community/Meta-Llama-3-8B-Instruct-GGUF",
+            "name": "ollama_router",
+            "type": "ollama",
+            "base_url": "http://aipc-01.harpou.com:11430/v1",
+            "default_model": "RoutingLLM/Mistral-7B-Instruct-v0.3:latest",
             "api_key": "NA",
+            "timeout": 600,
             "llm_auto_load": true
         }
     ],
-    "primary_backend_name": "ollama_local",
+    "primary_backend_name": "ollama",
+    "ROUTING_BACKEND_NAME": "ollama_router",
     "high_availability_strategy": "failover",
-    "SYSTEM_ADMIN_EMAIL": "admin@example.com",
+    "SYSTEM_ADMIN_EMAIL": "harpou@gmail.com",
     "SEARXNG_BASE_URL": "http://localhost:8080",
-    "CELERY_BROKER_URL": "redis://redis:6379/0",
-    "CELERY_RESULT_BACKEND": "redis://redis:6379/0",
-    "RATELIMIT_STORAGE_URI": "redis://redis:6379/0",
-    "CACHE_REDIS_URL": "redis://redis:6379/0",
+    "CELERY_BROKER_URL": "redis://localhost:6379/0",
+    "CELERY_RESULT_BACKEND": "redis://localhost:6379/0",
+    "RATELIMIT_STORAGE_URI": "redis://localhost:6379/0",
+    "CACHE_REDIS_URL": "redis://localhost:6379/0",
     "FLASK_SECRET_KEY": "a_very_secret_key_for_local_dev_only",
     "LOG_LEVEL": "info",
     "LOG_ROTATION_DAYS": 7,
     "llm_cache_update_interval_minutes": 5,
-    "api_keys": [
+    "users": [
         {
             "key": "sk-my-first-key-for-user1",
-            "owner": "user_1",
-            "rate_limit": "100/hour"
+            "username": "user_1",
+            "displayname": "Utilisateur 1",
+            "email": "user1@example.com",
+            "adresse": "123 Rue Principale, Ville, QC",
+            "language": "fr",
+            "homeassistant_entity": "person.user_one",
+            "persona": "Tu es un assistant IA serviable et amical qui s'adresse à l'utilisateur en français. Tu es concis et direct.",
+            "rate_limit": "unlimited"
         }
     ]
 }

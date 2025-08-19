@@ -107,20 +107,60 @@ def create_app(config_object=None):
     # On commence avec un dictionnaire de configuration vide qui sera rempli par couches successives.
     config = {}
 
+    # --- Configuration de la journalisation (le plus tôt possible) ---
+    # On configure le logging avec les valeurs par défaut ou d'environnement
+    # pour que les erreurs de chargement de configuration soient visibles immédiatement.
+    app.config['LOG_LEVEL'] = os.environ.get('LOG_LEVEL', 'INFO')
+    app.config['LOG_ROTATION_DAYS'] = os.environ.get('LOG_ROTATION_DAYS', 7)
+    configure_logging(app)
+    # --- La journalisation est maintenant active et fiable ---
+
+    app.logger.info("--- Démarrage de la séquence de chargement de la configuration ---")
+
     # Couche 1 : Charger la configuration depuis config.json (s'il existe)
     project_root = os.path.abspath(os.path.join(app.root_path, os.pardir))
     config_path = os.path.join(project_root, 'config', 'config.json')
     app.logger.info(f"Recherche du fichier de configuration à l'emplacement : {config_path}")
     if os.path.exists(config_path):
         try:
-            with open(config_path) as config_file:
+            # Utiliser 'utf-8-sig' pour ignorer automatiquement le BOM (Byte Order Mark)
+            # si le fichier a été édité sur Windows.
+            with open(config_path, encoding='utf-8-sig') as config_file:
                 config.update(json.load(config_file))
+            # Mettre à jour la configuration de logging avec les valeurs du fichier, si elles existent.
+            app.config['LOG_LEVEL'] = config.get('LOG_LEVEL', app.config['LOG_LEVEL'])
+            app.config['LOG_ROTATION_DAYS'] = config.get('LOG_ROTATION_DAYS', app.config['LOG_ROTATION_DAYS'])
+            # Re-configurer avec les nouvelles valeurs pour qu'elles prennent effet.
+            configure_logging(app)
             app.logger.info("Fichier config.json chargé avec succès.")
         except json.JSONDecodeError:
             app.logger.error(f"Erreur de décodage du fichier JSON : {config_path}")
     else:
         app.logger.warning("Fichier config.json non trouvé. Utilisation des valeurs par défaut et des variables d'environnement.")
 
+    # Harmoniser la clé 'routing_backend_name' en majuscules pour la cohérence
+    # dans toute l'application (ex: tasks.py l'attend en majuscules).
+    # Cela assure que la valeur de config.json est correctement utilisée, même si la clé est en minuscules.
+    if 'routing_backend_name' in config:
+        config['ROUTING_BACKEND_NAME'] = config.pop('routing_backend_name')
+
+    # Couche 1b : Charger la configuration des outils depuis tools_config.json
+    tools_config_path = os.path.join(project_root, 'config', 'tools_config.json')
+    app.logger.info(f"Recherche du fichier de configuration des outils : {tools_config_path}")
+    if os.path.exists(tools_config_path):
+        try:
+            # Utiliser 'utf-8-sig' pour ignorer automatiquement le BOM (Byte Order Mark)
+            # si le fichier a été édité sur Windows.
+            with open(tools_config_path, encoding='utf-8-sig') as tools_file:
+                # On charge la liste des outils dans la clé 'AVAILABLE_TOOLS'
+                config['AVAILABLE_TOOLS'] = json.load(tools_file)
+            app.logger.info("Fichier tools_config.json chargé avec succès.")
+        except json.JSONDecodeError as e:
+            app.logger.error(f"Erreur de décodage du fichier JSON des outils ({tools_config_path}). Erreur: {e}")
+            config['AVAILABLE_TOOLS'] = []
+    else:
+        app.logger.warning("Fichier tools_config.json non trouvé. Aucun outil ne sera disponible.")
+        config['AVAILABLE_TOOLS'] = []
 
     # 2. Logique de surcharge par variables d'environnement
     app.logger.info("Vérification des variables d'environnement pour surcharger la configuration...")
@@ -157,6 +197,7 @@ def create_app(config_object=None):
         'LOG_LEVEL': 'LOG_LEVEL',
         'LOG_ROTATION_DAYS': 'LOG_ROTATION_DAYS',
         'PRIMARY_BACKEND_NAME': 'primary_backend_name',
+        'ROUTING_BACKEND_NAME': 'ROUTING_BACKEND_NAME', # Utiliser la clé canonique en majuscules pour la cohérence.
         'HIGH_AVAILABILITY_STRATEGY': 'high_availability_strategy',
         'RATELIMIT_DEFAULT': 'RATELIMIT_DEFAULT',
         'RATELIMIT_STORAGE_URI': 'RATELIMIT_STORAGE_URI',
@@ -167,20 +208,18 @@ def create_app(config_object=None):
 
     for env_key, config_key in env_to_config_map.items():
         # Ne pas surcharger les paramètres HA si le mode backend unique est actif
-        if is_single_backend_mode and config_key in ['primary_backend_name', 'high_availability_strategy']:
+        if is_single_backend_mode and config_key in ['primary_backend_name', 'high_availability_strategy', 'ROUTING_BACKEND_NAME']:
             continue
 
         if (env_value := os.environ.get(env_key)) is not None:
             if config.get(config_key) != env_value:
                 app.logger.info(f"  -> Surcharge de '{config_key}' avec la variable d'environnement '{env_key}'.")
             config[config_key] = env_value
-
-
-    
-    # Scénario 3: Surcharge de la configuration des clés API
+ 
+    # Scénario 3: Surcharge de la configuration des utilisateurs
     # Priorité 1: Clé unique simple via API_KEY
     if api_key_value := os.environ.get('API_KEY'):
-        app.logger.info("Mode de configuration 'clé API unique' détecté via la variable d'environnement 'API_KEY'.")
+        app.logger.info("Mode de configuration 'utilisateur unique' détecté via la variable d'environnement 'API_KEY'.")
 
         # Vérifier si la variable contient un chemin de fichier (comme un secret Docker)
         if os.path.exists(api_key_value):
@@ -191,19 +230,19 @@ def create_app(config_object=None):
             app.logger.info(" -> La variable API_KEY est utilisée directement comme clé.")
 
         rate_limit = os.environ.get('API_KEY_RATE_LIMIT', '100/hour')
-        app.logger.info(f" -> Clé unique configurée avec un rate_limit de '{rate_limit}'.")
-        config['api_keys'] = [
-            {"key": api_key_value, "owner": "default_user", "rate_limit": rate_limit}
+        app.logger.info(f" -> Utilisateur unique configuré avec un rate_limit de '{rate_limit}'.")
+        config['users'] = [
+            {"key": api_key_value, "username": "default_user", "displayname": "Default User", "rate_limit": rate_limit}
         ]
-    # Priorité 2: Configuration multi-clés via API_KEYS_JSON
-    elif api_keys_json_str := os.environ.get('API_KEYS_JSON'):
-        app.logger.info("Tentative de surcharge de 'api_keys' avec la variable d'environnement 'API_KEYS_JSON'.")
+    # Priorité 2: Configuration multi-utilisateurs via USERS_JSON
+    elif users_json_str := os.environ.get('USERS_JSON'):
+        app.logger.info("Tentative de surcharge de 'users' avec la variable d'environnement 'USERS_JSON'.")
         try:
-            api_keys_from_env = json.loads(api_keys_json_str)
-            if isinstance(api_keys_from_env, list):
-                config['api_keys'] = api_keys_from_env
+            users_from_env = json.loads(users_json_str)
+            if isinstance(users_from_env, list):
+                config['users'] = users_from_env
         except json.JSONDecodeError:
-            app.logger.error("La variable d'environnement 'API_KEYS_JSON' contient un JSON invalide.")
+            app.logger.error("La variable d'environnement 'USERS_JSON' contient un JSON invalide.")
     # Si aucune variable d'environnement n'est définie, la configuration de config.json est utilisée.
     
     # 3. Gérer la clé secrète avec la plus haute priorité (Docker Secrets)
@@ -248,10 +287,6 @@ def create_app(config_object=None):
     if result_backend := app.config.get('CELERY_RESULT_BACKEND'):
         app.config['result_backend'] = result_backend
 
-    # --- Configuration de la journalisation (AVANT de logger la config) ---
-    configure_logging(app)
-    configure_audit_logging(app)
-
     # --- Journalisation de la configuration finale ---
     app.logger.info("="*50)
     app.logger.info("Configuration finale de l'AI Gateway chargée :")
@@ -270,17 +305,27 @@ def create_app(config_object=None):
         app.logger.info(f"      - Default Model: {backend.get('default_model')}")
         app.logger.info(f"      - Auto Load Models: {backend.get('llm_auto_load')}")
     app.logger.info(f"  - Primary Backend: {app.config.get('primary_backend_name')}")
+    app.logger.info(f"  - Routing Backend: {app.config.get('ROUTING_BACKEND_NAME', 'non défini')}")
     app.logger.info(f"  - High Availability Strategy: {app.config.get('high_availability_strategy')}")
     app.logger.info(f"  - Rate Limit Default: {app.config.get('RATELIMIT_DEFAULT', 'non défini')}")
     app.logger.info(f"  - Rate Limit Storage: {app.config.get('RATELIMIT_STORAGE_URI', 'en mémoire')}")
     app.logger.info(f"  - System Admin Email: {app.config.get('SYSTEM_ADMIN_EMAIL', 'non défini')}")
+    available_tools = app.config.get('AVAILABLE_TOOLS', [])
+    if available_tools:
+        tool_names = [tool.get('name', 'Nom manquant') for tool in available_tools]
+        app.logger.info(f"  - Outils disponibles: {', '.join(tool_names)}")
+    else:
+        app.logger.info("  - Outils disponibles: Aucun outil n'a été chargé.")
     app.logger.info("="*50)
 
     # --- Initialisation des modules et extensions ---
 
-    # Pré-calculer le dictionnaire de clés API pour des recherches rapides
-    from .auth import _initialize_api_keys
-    _initialize_api_keys(app)
+    # Configurer la journalisation d'audit séparée
+    configure_audit_logging(app)
+
+    # Pré-calculer le dictionnaire des utilisateurs pour des recherches rapides
+    from .auth import _initialize_users
+    _initialize_users(app)
 
     # Initialiser Flask-Caching
     flask_cache.init_app(app)

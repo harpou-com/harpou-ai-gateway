@@ -28,6 +28,7 @@
         }
     ],
     "primary_backend_name": "ollama_local",
+    "routing_backend_name": "lm_studio_local",
     "high_availability_strategy": "failover",
     "SYSTEM_ADMIN_EMAIL": "admin@example.com",
     "LLM_BACKEND_TIMEOUT": 300,

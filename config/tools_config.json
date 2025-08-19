@@ -1,0 +1,85 @@
+[
+    {
+        "name": "search_web",
+        "type": "internal_function",
+        "description": "Outil permettant d'effectuer des recherches sur internet afin d'obtenir des informations récentes (par exemple : météo, actualités, résultats sportifs, etc.).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "La requête de recherche à envoyer sur le web."
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "read_webpage",
+        "type": "internal_function",
+        "description": "Permet de lire et d'extraire le contenu textuel principal d'une page web à partir de son URL. Utile pour obtenir des détails, résumer un article, ou analyser le contenu d'un lien spécifique.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "L'URL complète de la page web à lire."
+                }
+            },
+            "required": ["url"]
+        }
+    },
+    {
+        "name": "get_detailed_weather",
+        "type": "web_scraper",
+        "description": "Permet d'obtenir un rapport météo complet (actuel, horaire, 7 et 14 jours) pour une ville au Canada depuis MétéoMédia. Idéal pour les données comme la température, le ressenti (humidex), l'indice UV, etc.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "country": {
+                    "type": "string",
+                    "description": "Le code du pays en minuscules, ex: 'ca' pour Canada."
+                },
+                "state": {
+                    "type": "string",
+                    "description": "Le nom de la province en minuscules, sans accents, ex: 'quebec'."
+                },
+                "city": {
+                    "type": "string",
+                    "description": "Le nom de la ville en minuscules, sans accents, ex: 'laval'."
+                }
+            },
+            "required": ["country", "state", "city"]
+        },
+        "execution_details": {
+            "base_url_template": "https://www.meteomedia.com/fr/ville/{country}/{state}/{city}",
+            "scrape_targets": [
+                {
+                    "name": "Météo Actuelle",
+                    "url_suffix": "/actuelle",
+                    "selectors": [
+                        { "name": "Température", "selector": "div[class^='CurrentConditions--tempValue']" },
+                        { "name": "Ressenti", "selector": "div[class^='CurrentConditions--feelsLike'] span[class^='value']" },
+                        { "name": "Condition", "selector": "div[class^='CurrentConditions--phrase']" },
+                        { "name": "Détails (Vent, Humidité, UV...)", "selector": "div[class^='DetailsTable--wx-details-table']" }
+                    ]
+                },
+                {
+                    "name": "Prévision Horaire",
+                    "url_suffix": "/horaire",
+                    "selectors": [ { "name": "Tableau horaire", "selector": "div[class^='HourlyForecast--Table']" } ]
+                },
+                {
+                    "name": "Prévision 7 jours",
+                    "url_suffix": "/7-jours",
+                    "selectors": [ { "name": "Tableau 7 jours", "selector": "div[class^='SevenDayForecast--container']" } ]
+                },
+                {
+                    "name": "Prévision 14 jours",
+                    "url_suffix": "/14-jours",
+                    "selectors": [ { "name": "Tableau 14 jours", "selector": "div[class^='FourteenDayForecast--table']" } ]
+                }
+            ]
+        }
+    }
+]

@@ -265,10 +265,12 @@ class Pipe:
                 task_result = await self.poll_task_status(self.client, task_id, headers)
                 if task_result.get("status") == "completed":
                     duration = time.time() - agentic_start_time
-                    result = task_result.get("result", "Task completed, but no result returned.")
+                    # S'assurer que le résultat n'est pas None avant de le traiter
+                    result = task_result.get("result")
                     log.info(f"[{task_id}] Task completed in {duration:.2f}s. Result: {result}")
 
-                    if result and isinstance(result, str):
+                    # Vérifier que le résultat est une chaîne de caractères non vide
+                    if result and isinstance(result, str) and result.strip():
                         # Nettoyer un éventuel préfixe ajouté par le backend pour éviter les doublons.
                         # Même avec le nettoyage du contexte, le LLM pourrait encore générer un préfixe simple.
                         # Cette étape reste une sécurité.
@@ -297,7 +299,9 @@ class Pipe:
                         final_response = f"{prefix}{cleaned_result}"
                         yield format_sse_chunk(final_response, body.get("model"))
                     else:
-                        yield format_sse_chunk(str(result), body.get("model"))
+                        # Gérer le cas où le résultat est vide, None, ou invalide
+                        error_msg = "L'agent a terminé sa tâche mais n'a produit aucune réponse. Veuillez réessayer."
+                        yield format_sse_chunk(error_msg, body.get("model"))
                 else:  # status == "failed"
                     error_message = task_result.get("error", "An unknown error occurred during the task.")
                     log.error(f"[{task_id}] Task failed: {error_message}")

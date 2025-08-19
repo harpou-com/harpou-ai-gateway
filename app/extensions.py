@@ -22,19 +22,19 @@ def _get_key_info_from_request():
     if auth_header and auth_header.startswith('Bearer '):
         provided_key = auth_header.split(' ', 1)[1]
 
-    valid_keys_dict = current_app.config.get('API_KEYS_DICT', {})
+    valid_users_dict = current_app.config.get('USERS_DICT', {})
     
     # If no keys are configured at all, treat as public access.
-    if not valid_keys_dict:
-        g.api_key_info = {"owner": "public_access"}
+    if not valid_users_dict:
+        g.api_key_info = {"username": "public_access"}
         return g.api_key_info
 
-    key_info = valid_keys_dict.get(provided_key)
+    key_info = valid_users_dict.get(provided_key)
     if key_info:
         g.api_key_info = key_info
     else:
         # Invalid or no key provided
-        g.api_key_info = {"owner": "invalid_key"}
+        g.api_key_info = {"username": "invalid_key"}
     
     return g.api_key_info
 
@@ -45,8 +45,8 @@ def rate_limit_identifier():
     Using the owner is more secure than using the key itself.
     """
     key_info = _get_key_info_from_request()
-    if key_info.get("owner") not in ["public_access", "invalid_key"]:
-        return key_info["owner"]
+    if key_info.get("username") not in ["public_access", "invalid_key"]:
+        return key_info["username"]
     return get_remote_address()
 
 def get_rate_limit_from_key():
@@ -55,7 +55,12 @@ def get_rate_limit_from_key():
     This is now reliable because _get_key_info_from_request is called first.
     """
     key_info = _get_key_info_from_request()
-    return key_info.get('rate_limit') or current_app.config.get("RATELIMIT_DEFAULT")
+    limit = key_info.get('rate_limit')
+    # Si la limite est explicitement "unlimited", on ne retourne aucune limite.
+    if limit == "unlimited":
+        return None
+    # Sinon, on retourne la limite de la clé ou la limite par défaut.
+    return limit or current_app.config.get("RATELIMIT_DEFAULT")
 
 # Initialisation de Celery. L'instance est définie ici pour être partagée par toute l'application.
 celery = Celery(__name__, include=['app.tasks'])

@@ -27,6 +27,10 @@ def init_celery_with_flask_app(app):
     # car nous supposons que la configuration de logging de Flask s'en charge déjà.
     celery.conf.worker_redirect_stdouts = False
 
+    # Désactiver les logs colorés de Celery, qui peuvent causer des problèmes avec eventlet
+    # en utilisant des appels système de bas niveau pour l'écriture sur le terminal.
+    celery.conf.worker_log_color = False
+
     # --- Validation de la configuration ---
     # S'assurer qu'un broker est bien configuré pour éviter que Celery ne se rabatte
     # sur son broker par défaut (AMQP) en silence.

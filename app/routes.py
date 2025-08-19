@@ -1,8 +1,8 @@
 import logging
 from flask import Blueprint, request, jsonify, Response, stream_with_context, current_app
 from celery.result import AsyncResult
-from app.extensions import celery # Import de l'instance Celery
-import time
+from app.extensions import celery, limiter # Import de l'instance Celery et du limiteur
+from .extensions import _get_key_info_from_request
 import json
 import uuid
 
@@ -69,6 +69,7 @@ def get_models():
 
 @bp.route('/v1/tasks/status/<task_id>', methods=['GET'])
 @require_api_key
+@limiter.exempt
 def get_task_status(task_id):
     """
     Sonde le statut d'une tâche Celery. C'est l'endpoint que le Pipe va appeler.
@@ -115,8 +116,9 @@ def chat_completions():
         # --- FLUX ASYNCHRONE (pour le client WebUI) ---
         sid = request.headers.get('X-SID')
         logger.info(f"Flux asynchrone détecté pour SID {sid}. Lancement de la tâche en arrière-plan.")
-        
-        task = orchestrator_task.delay(sid=sid, conversation=conversation, model_id=model_id)
+        # Récupérer les informations de l'utilisateur pour les passer à la tâche
+        user_info = _get_key_info_from_request()
+        task = orchestrator_task.delay(sid=sid, conversation=conversation, model_id=model_id, user_info=user_info)
         
         response_payload = {
             "id": task.id,
