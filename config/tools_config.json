@@ -12,18 +12,33 @@
                 }
             },
             "required": ["query"]
+        },
+        "execution_details": {
+            "pages_to_read": 3,
+            "excerpts_to_show": 5
         }
     },
     {
         "name": "read_webpage",
         "type": "internal_function",
-        "description": "Permet de lire et d'extraire le contenu textuel principal d'une page web à partir de son URL. Utile pour obtenir des détails, résumer un article, ou analyser le contenu d'un lien spécifique.",
+        "description": "Permet de lire et d'extraire le contenu textuel principal d'une ou plusieurs pages web à partir de leur(s) URL(s). Utile pour obtenir des détails, résumer des articles, ou analyser le contenu de liens spécifiques.",
         "parameters": {
             "type": "object",
             "properties": {
                 "url": {
-                    "type": "string",
-                    "description": "L'URL complète de la page web à lire."
+                    "oneOf": [
+                        {
+                            "type": "string",
+                            "description": "L'URL complète de la page web à lire."
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Une liste d'URLs complètes à lire."
+                        }
+                    ]
                 }
             },
             "required": ["url"]
@@ -31,55 +46,47 @@
     },
     {
         "name": "get_detailed_weather",
-        "type": "web_scraper",
-        "description": "Permet d'obtenir un rapport météo complet (actuel, horaire, 7 et 14 jours) pour une ville au Canada depuis MétéoMédia. Idéal pour les données comme la température, le ressenti (humidex), l'indice UV, etc.",
+        "type": "search_and_read_webpage",
+        "description": "Permet d'obtenir un rapport météo complet en cherchant les prévisions (actuelles, horaires, 7 et 14 jours) pour un lieu spécifique (ville, adresse, etc.) sur MétéoMédia.",
         "parameters": {
             "type": "object",
             "properties": {
-                "country": {
+                "location": {
                     "type": "string",
-                    "description": "Le code du pays en minuscules, ex: 'ca' pour Canada."
-                },
-                "state": {
-                    "type": "string",
-                    "description": "Le nom de la province en minuscules, sans accents, ex: 'quebec'."
-                },
-                "city": {
-                    "type": "string",
-                    "description": "Le nom de la ville en minuscules, sans accents, ex: 'laval'."
+                    "description": "Le lieu textuel (ville, adresse, code postal) pour lequel obtenir la météo. N'accepte pas les coordonnées GPS (latitude/longitude); utilisez l'outil 'get_address_from_coordinates' pour les convertir au préalable."
                 }
             },
-            "required": ["country", "state", "city"]
+            "required": ["location"]
         },
         "execution_details": {
-            "base_url_template": "https://www.meteomedia.com/fr/ville/{country}/{state}/{city}",
-            "scrape_targets": [
-                {
-                    "name": "Météo Actuelle",
-                    "url_suffix": "/actuelle",
-                    "selectors": [
-                        { "name": "Température", "selector": "div[class^='CurrentConditions--tempValue']" },
-                        { "name": "Ressenti", "selector": "div[class^='CurrentConditions--feelsLike'] span[class^='value']" },
-                        { "name": "Condition", "selector": "div[class^='CurrentConditions--phrase']" },
-                        { "name": "Détails (Vent, Humidité, UV...)", "selector": "div[class^='DetailsTable--wx-details-table']" }
-                    ]
+            "query_template": "site:meteomedia.com prévisions météo actuelle, horaire, 7 et 14 jours pour {location}",
+            "pages_to_read": 3
+        }
+    },
+    {
+        "name": "get_address_from_coordinates",
+        "type": "url_from_template",
+        "description": "Convertit la latitude et la longitude en une adresse lisible par l'homme en lisant directement une URL de recherche cartographique.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "latitude": {
+                    "type": "number",
+                    "description": "La latitude du lieu."
                 },
-                {
-                    "name": "Prévision Horaire",
-                    "url_suffix": "/horaire",
-                    "selectors": [ { "name": "Tableau horaire", "selector": "div[class^='HourlyForecast--Table']" } ]
-                },
-                {
-                    "name": "Prévision 7 jours",
-                    "url_suffix": "/7-jours",
-                    "selectors": [ { "name": "Tableau 7 jours", "selector": "div[class^='SevenDayForecast--container']" } ]
-                },
-                {
-                    "name": "Prévision 14 jours",
-                    "url_suffix": "/14-jours",
-                    "selectors": [ { "name": "Tableau 14 jours", "selector": "div[class^='FourteenDayForecast--table']" } ]
+                "longitude": {
+                    "type": "number",
+                    "description": "La longitude du lieu."
                 }
+            },
+            "required": [
+                "latitude",
+                "longitude"
             ]
+        },
+        "execution_details": {
+            "query_template": "{SEARXNG_BASE_URL}/search?q={latitude}%2C%20{longitude}&language=auto&time_range=&safesearch=2&categories=map&format=json",
+            "pages_to_read": 1
         }
     }
 ]

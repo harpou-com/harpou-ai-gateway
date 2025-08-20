@@ -21,6 +21,7 @@
     ],
     "primary_backend_name": "ollama",
     "ROUTING_BACKEND_NAME": "ollama_router",
+    "routing_prompt_file": "default_routing.txt",
     "high_availability_strategy": "failover",
     "SYSTEM_ADMIN_EMAIL": "harpou@gmail.com",
     "SEARXNG_BASE_URL": "http://localhost:8080",
@@ -41,7 +42,7 @@
             "adresse": "123 Rue Principale, Ville, QC",
             "language": "fr",
             "homeassistant_entity": "person.user_one",
-            "persona": "Tu es un assistant IA serviable et amical qui s'adresse à l'utilisateur en français. Tu es concis et direct.",
+            "persona_prompt_file": "default_persona.txt",
             "rate_limit": "unlimited"
         }
     ]

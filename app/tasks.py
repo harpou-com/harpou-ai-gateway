@@ -2,8 +2,11 @@ import logging
 import json
 import os
 import copy
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from typing import Optional, List, Dict, Any
 import urllib.parse
+import unicodedata
 import requests
 from bs4 import BeautifulSoup
 from flask import current_app
@@ -14,6 +17,31 @@ from app.services import refresh_and_cache_models
 
 # Configuration du logger
 logger = logging.getLogger(__name__)
+
+def _get_prompt_from_file(filename: str) -> Optional[str]:
+    """Lit un prompt depuis un fichier dans le dossier config/prompts."""
+    if not filename:
+        return None
+    try:
+        # Le chemin racine du projet est un niveau au-dessus du répertoire de l'application
+        project_root = os.path.abspath(os.path.join(current_app.root_path, os.pardir))
+        prompt_path = os.path.join(project_root, 'config', 'prompts', filename)
+        
+        if os.path.exists(prompt_path):
+            with open(prompt_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        else:
+            logger.warning(f"Le fichier de prompt '{filename}' est configuré mais n'a pas été trouvé à l'emplacement : {prompt_path}")
+            return None
+    except Exception as e:
+        logger.error(f"Erreur lors de la lecture du fichier de prompt '{filename}': {e}")
+        return None
+
+def _normalize_string(s: str) -> str:
+    """Retire les accents et autres diacritiques d'une chaîne de caractères."""
+    if not isinstance(s, str):
+        return str(s)
+    return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
 
 def get_llm_decision(user_question: str, model_name: str):
     """
@@ -35,19 +63,20 @@ def get_llm_decision(user_question: str, model_name: str):
     tool_examples.append('- Pour une réponse directe : {"action": "respond_directly"}')
     examples_str = "\n".join(tool_examples)
 
-    system_prompt = f"""
-Vous êtes un orchestrateur intelligent. Votre unique tâche est d'analyser la question de l'utilisateur fournie ci-dessous et de décider de la meilleure action à entreprendre.
-Ne tenez pas compte d'un éventuel historique de conversation, basez votre décision uniquement sur la question explicite.
-Actions possibles : `call_tool` ou `respond_directly`.
+    # Charger le template du prompt de routage depuis un fichier
+    routing_prompt_file = current_app.config.get("routing_prompt_file", "default_routing.txt")
+    system_prompt_template = _get_prompt_from_file(routing_prompt_file)
 
-Outils disponibles :
-{json.dumps(available_tools, indent=2)}
+    if not system_prompt_template:
+        # Fallback vers un prompt hardcodé si le fichier est manquant ou vide
+        logger.error("Le template du prompt de routage est manquant ou vide. Utilisation d'un prompt par défaut.")
+        system_prompt_template = """Vous êtes un orchestrateur. Choisissez une action: `call_tool` ou `respond_directly`. Outils: {available_tools}. Répondez en JSON comme dans ces exemples: {examples_str}."""
 
-Règle impérative : Vous DEVEZ choisir un nom d'outil EXACTEMENT comme il apparaît dans la liste "Outils disponibles". N'inventez PAS de nouveaux noms d'outils. Si aucun outil ne correspond parfaitement, choisissez le plus pertinent ou répondez directement.
-
-Répondez avec un objet JSON structuré comme l'un des exemples suivants :
-{examples_str}
-"""
+    # Remplir les placeholders dans le template
+    system_prompt = system_prompt_template.format(
+        available_tools=json.dumps(available_tools, indent=2),
+        examples_str=examples_str
+    )
     
     full_prompt = f"{system_prompt}\n\nQuestion utilisateur : \"{user_question}\"\n\nVotre réponse JSON :"
 
@@ -92,21 +121,55 @@ def _execute_tool(tool_name: str, parameters: dict, user_question: str) -> str:
             if tool_name == "search_web":
                 query = parameters.get("query", "")
                 logger.info(f"Orchestrateur : appel de la fonction interne 'search_web' avec la requête : {query}")
+                
+                # Récupérer les paramètres configurables depuis tools_config.json, avec des valeurs par défaut.
+                details = tool_config.get("execution_details", {})
+                pages_to_read = details.get("pages_to_read", 1)
+                excerpts_to_show = details.get("excerpts_to_show", 4)
+                
                 search_results = search_web_task(query=query)
-                if isinstance(search_results, list) and search_results:
-                    top_result_url = search_results[0].get('url')
-                    logger.info(f"Orchestrateur : appel de 'read_webpage' sur le premier résultat : {top_result_url}")
-                    scraped_content = read_webpage_task(url=top_result_url)
-                    final_context = f"Contenu détaillé de la page principale ({top_result_url}):\n{scraped_content}\n\n"
-                    final_context += "--- AUTRES RÉSULTATS DE RECHERCHE ---\n"
-                    final_context += _format_results_as_context(search_results[1:5])
-                    return final_context
-                else:
+                if not isinstance(search_results, list) or not search_results:
                     return "La recherche n'a retourné aucun résultat."
+
+                # --- Lecture en parallèle des pages principales ---
+                urls_to_read = [res.get('url') for res in search_results[:pages_to_read] if res.get('url')]
+                final_context = ""
+                
+                if urls_to_read:
+                    logger.info(f"Lecture en parallèle de {len(urls_to_read)} page(s) web...")
+                    pool = GreenPool()
+                    read_contents = list(pool.imap(read_webpage_task, urls_to_read))
+                    
+                    final_context += "--- CONTENU DES PAGES PRINCIPALES ---\n"
+                    for i, content in enumerate(read_contents):
+                        final_context += f"Source {i+1}: {urls_to_read[i]}\nContenu:\n{content}\n---\n"
+                
+                # --- Ajout des extraits des pages suivantes ---
+                excerpt_results = search_results[pages_to_read : pages_to_read + excerpts_to_show]
+                if excerpt_results:
+                    final_context += "\n--- AUTRES RÉSULTATS DE RECHERCHE (EXTRAITS) ---\n"
+                    final_context += _format_results_as_context(excerpt_results)
+                    
+                return final_context
             elif tool_name == "read_webpage":
-                url = parameters.get("url", "")
-                logger.info(f"Orchestrateur : appel direct de la fonction interne 'read_webpage' sur l'URL : {url}")
-                return read_webpage_task(url=url)
+                urls = parameters.get("url", [])
+                if isinstance(urls, str):
+                    # Si une seule URL est fournie, on la traite comme une liste d'un seul élément.
+                    urls = [urls]
+                
+                if not urls:
+                    return "Erreur: Aucune URL n'a été fournie."
+
+                logger.info(f"Orchestrateur : appel de la fonction interne 'read_webpage' sur {len(urls)} URL(s).")
+                
+                pool = GreenPool()
+                read_contents = list(pool.imap(read_webpage_task, urls))
+                
+                final_context = ""
+                for i, content in enumerate(read_contents):
+                    final_context += f"--- Contenu de l'URL {i+1}: {urls[i]} ---\n{content}\n\n"
+                
+                return final_context.strip()
             else:
                 error_msg = f"Fonction interne non implémentée: '{tool_name}'"
                 logger.warning(error_msg)
@@ -135,68 +198,75 @@ def _execute_tool(tool_name: str, parameters: dict, user_question: str) -> str:
             response.raise_for_status()
             return response.text
 
-        elif tool_type == "web_scraper":
-            logger.info(f"Exécution de l'outil de type 'web_scraper': '{tool_name}'")
+        elif tool_type == "search_and_read_webpage":
+            logger.info(f"Exécution de l'outil de type 'search_and_read_webpage': '{tool_name}'")
             details = tool_config.get("execution_details")
-            if not details or "base_url_template" not in details or "scrape_targets" not in details:
-                return f"Erreur: 'execution_details' mal configuré pour l'outil scraper '{tool_name}'. Attendu: 'base_url_template' et 'scrape_targets'."
+            if not details or "query_template" not in details:
+                return f"Erreur: 'execution_details' mal configuré pour l'outil '{tool_name}'. Attendu: 'query_template'."
 
-            encoded_params = {k: urllib.parse.quote(str(v)) for k, v in parameters.items()}
-            base_url = details["base_url_template"].format(**encoded_params)
-            targets = details.get("scrape_targets", [])
+            query = details["query_template"].format(**parameters)
+            pages_to_read = details.get("pages_to_read", 1)
 
+            logger.info(f"Recherche générée pour '{tool_name}': {query}")
+            search_results = search_web_task(query=query)
+            if not isinstance(search_results, list) or not search_results:
+                return "La recherche n'a retourné aucun résultat."
+
+            urls_to_read = [res.get('url') for res in search_results[:pages_to_read] if res.get('url')]
+
+            if not urls_to_read:
+                return "La recherche n'a retourné aucune URL à lire."
+
+            logger.info(f"Lecture en parallèle de {len(urls_to_read)} page(s) web...")
             pool = GreenPool()
+            read_contents = list(pool.imap(read_webpage_task, urls_to_read))
 
-            def scrape_target(target):
-                target_name = target.get("name", "Cible sans nom")
-                full_url = base_url + target.get("url_suffix", "")
-                logger.info(f"Scraping de la cible '{target_name}' à l'URL : {full_url}")
-                
-                try:
-                    headers = {'User-Agent': 'Harpou-AI-Gateway-Scraper/1.0'}
-                    page_response = requests.get(full_url, timeout=20, headers=headers)
-                    page_response.raise_for_status()
-                    soup = BeautifulSoup(page_response.content, 'html.parser')
-                    
-                    target_data = [f"--- {target_name} ---"]
-                    for item_to_scrape in target.get("selectors", []):
-                        element = soup.select_one(item_to_scrape['selector'])
-                        if element:
-                            value = element.get_text(strip=True, separator=' ')
-                            target_data.append(f"- {item_to_scrape['name']}: {value}")
-                        else:
-                            target_data.append(f"- {item_to_scrape['name']}: Non trouvé")
-                    return "\n".join(target_data)
-                except Exception as e:
-                    logger.error(f"Échec du scraping pour la cible '{target_name}' ({full_url}): {e}")
-                    return f"--- {target_name} ---\nErreur lors de la récupération des données."
-
-            # Lancer les tâches de scraping en parallèle et collecter les résultats
-            scraped_results = list(pool.imap(scrape_target, targets))
-            scraped_results_str = "\n\n".join(scraped_results)
+            search_and_read_context = ""
+            for i, content in enumerate(read_contents):
+                search_and_read_context += f"--- Contenu de l\'URL {i+1}: {urls_to_read[i]} ---\n{content}\n\n"
 
             # --- Logique d'enrichissement pour la météo ---
-            # Si l'outil principal (le scraper) ne suffit pas, on lance une recherche web.
-            if tool_name == "get_detailed_weather": # Ce nom doit correspondre à celui dans tools_config.json
+            if tool_name == "get_detailed_weather":
                 supplementary_context = ""
-                # Mots-clés que MétéoMédia pourrait ne pas fournir de manière structurée
                 keywords_to_check = ["insecte", "moustique", "pollen", "qualité de l'air", "uv", "humidex"]
-                
+
                 keywords_found = [kw for kw in keywords_to_check if kw in user_question.lower()]
                 if keywords_found:
                     logger.info(f"La question météo contient des mots-clés spécifiques ({keywords_found}). Lancement d'une recherche web pour enrichir les données.")
-                    
-                    city = parameters.get("city", "la ville")
-                    state = parameters.get("state", "")
+
+                    location = parameters.get("location", "l'endroit demandé")
                     search_terms = ", ".join(keywords_found)
-                    supplementary_query = f"prévisions {search_terms} pour {city} {state}"
-                    
-                    search_results = search_web_task(query=supplementary_query)
-                    if search_results:
+                    supplementary_query = f"prévision {search_terms} pour {location}"
+
+                    supplementary_search_results = search_web_task(query=supplementary_query)
+                    if supplementary_search_results:
                         supplementary_context = "\n\n--- Informations complémentaires (recherche web) ---\n"
-                        supplementary_context += _format_results_as_context(search_results[:3]) # Limiter à 3 résultats pour la concision
-                return f"{scraped_results_str}{supplementary_context}"
-            return scraped_results_str
+                        supplementary_context += _format_results_as_context(supplementary_search_results[:3])
+                return f"{search_and_read_context}{supplementary_context}"
+
+            return search_and_read_context.strip()
+
+        elif tool_type == "url_from_template":
+            logger.info(f"Exécution de l'outil de type 'url_from_template': '{tool_name}'")
+            details = tool_config.get("execution_details")
+            if not details or "query_template" not in details:
+                return f"Erreur: 'execution_details' mal configuré pour l'outil '{tool_name}'. Attendu: 'query_template'."
+
+            # Récupérer le template et injecter les variables de configuration globales
+            template_string = details["query_template"]
+            if '{SEARXNG_BASE_URL}' in template_string:
+                searxng_url = current_app.config.get('SEARXNG_BASE_URL', '')
+                template_string = template_string.replace('{SEARXNG_BASE_URL}', searxng_url)
+
+            # Formater l'URL avec les paramètres spécifiques à l'outil
+            url_to_read = template_string.format(**parameters)
+
+            # Appeler directement la fonction de lecture de page web
+            logger.info(f"Lecture directe de l'URL générée : {url_to_read}")
+            result = read_webpage_task(url_to_read)
+
+            # Formater la sortie pour être cohérente avec les autres outils
+            return f"--- Contenu de l'URL 1: {url_to_read} ---\n{result}\n\n"
 
         else:
             error_msg = f"Erreur: Type d'outil non supporté '{tool_type}' pour l'outil '{tool_name}'."
@@ -325,30 +395,48 @@ def orchestrator_task(sid: str, conversation: List[Dict[str, Any]], model_id: st
         # --- Étape de Synthèse Finale ---
         logger.info(f"Début de la synthèse finale pour SID {sid}.")
 
-        # Préparer les messages pour le LLM de synthèse en injectant le contexte si nécessaire
+        # 1. Définir le contexte temporel pour le LLM.
+        time_context = ""
+        try:
+            # Le fuseau horaire pourrait être rendu configurable ou lié à l'utilisateur.
+            tz = ZoneInfo("America/Montreal")
+            current_time_str = datetime.now(tz).strftime('%Y-%m-%d %H:%M:%S %Z')
+            time_context = f"Contexte temporel : La date et l'heure actuelles sont {current_time_str}."
+        except (ZoneInfoNotFoundError, ImportError):
+            logger.warning("Le module 'zoneinfo' ou le fuseau horaire n'est pas disponible. Utilisation de l'heure UTC.")
+            current_time_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+            time_context = f"Contexte temporel : La date et l'heure actuelles sont {current_time_str}."
+        except Exception as e:
+            logger.error(f"Erreur lors de la récupération de la date/heure : {e}")
+            # Ne pas bloquer l'exécution si la date échoue.
+
+        # 2. Déterminer le prompt système de base.
+        base_system_prompt = ""
         if tool_results:
-            system_prompt = f"""Vous êtes un assistant de synthèse. Votre rôle est de répondre à la question de l'utilisateur EN VOUS BASANT UNIQUEMENT sur les "Informations de recherche" fournies ci-dessous.
+            # Si un outil a été utilisé, le prompt se concentre sur la synthèse des résultats.
+            base_system_prompt = f"""Vous êtes un assistant de synthèse. Votre rôle est de répondre à la question de l'utilisateur EN VOUS BASANT UNIQUEMENT sur les "Informations de recherche" fournies ci-dessous.
 Règle impérative : NE PAS inventer d'informations ou de valeurs qui ne sont pas présentes dans le contexte. Si une information demandée par l'utilisateur (par exemple, le risque d'insectes) n'est pas explicitement listée dans les "Informations de recherche", vous DEVEZ indiquer qu'elle n'a pas pu être trouvée.
 Formatez la réponse de manière claire et lisible.
 
 Informations de recherche:\n---\n{tool_results}\n---"""
-            if synthesis_messages and synthesis_messages[0].get("role") == "system":
-                synthesis_messages[0]["content"] = system_prompt
-            else:
-                synthesis_messages.insert(0, {"role": "system", "content": system_prompt})
-        elif not synthesis_messages or synthesis_messages[0].get("role") != "system":
-            # Injecter le persona de l'utilisateur s'il est défini
-            if user_info and (persona := user_info.get("persona")):
-                system_prompt = persona
-                logger.info(f"Persona de l'utilisateur '{user_info.get('username')}' injecté dans le prompt.")
-            else:
-                system_prompt = "Vous êtes un assistant IA généraliste et serviable."
-            synthesis_messages.insert(0, {"role": "system", "content": system_prompt})
-        elif user_info and (persona := user_info.get("persona")):
-            synthesis_messages[0]["content"] = f"{persona}\n\n{synthesis_messages[0]['content']}"
-            logger.info(f"Persona de l'utilisateur '{user_info.get('username')}' injecté dans le prompt système existant.")
-            system_prompt = "Vous êtes un assistant IA généraliste et serviable."
-            synthesis_messages.insert(0, {"role": "system", "content": system_prompt})
+        else:
+            # Si aucune information externe n'est fournie, on utilise le persona de l'utilisateur ou un prompt par défaut.
+            persona_prompt = None
+            if user_info and (persona_file := user_info.get("persona_prompt_file")):
+                persona_prompt = _get_prompt_from_file(persona_file)
+                if persona_prompt:
+                    logger.info(f"Persona de l'utilisateur '{user_info.get('username')}' injecté depuis le fichier '{persona_file}'.")
+            
+            base_system_prompt = persona_prompt or "Vous êtes un assistant IA généraliste et serviable."
+
+        # 3. Construire le prompt système final en combinant le temps et le contenu.
+        final_system_prompt = f"{time_context}\n\n{base_system_prompt}".strip()
+
+        # 4. Injecter ou mettre à jour le prompt système dans la conversation.
+        if synthesis_messages and synthesis_messages[0].get("role") == "system":
+            synthesis_messages[0]["content"] = final_system_prompt
+        else:
+            synthesis_messages.insert(0, {"role": "system", "content": final_system_prompt})
 
         # La valeur retournée ici est le résultat de la tâche Celery,
         # qui sera récupéré par l'endpoint de polling HTTP.

@@ -198,6 +198,7 @@ def create_app(config_object=None):
         'LOG_ROTATION_DAYS': 'LOG_ROTATION_DAYS',
         'PRIMARY_BACKEND_NAME': 'primary_backend_name',
         'ROUTING_BACKEND_NAME': 'ROUTING_BACKEND_NAME', # Utiliser la clé canonique en majuscules pour la cohérence.
+        'ROUTING_PROMPT_FILE': 'routing_prompt_file',
         'HIGH_AVAILABILITY_STRATEGY': 'high_availability_strategy',
         'RATELIMIT_DEFAULT': 'RATELIMIT_DEFAULT',
         'RATELIMIT_STORAGE_URI': 'RATELIMIT_STORAGE_URI',
@@ -306,6 +307,7 @@ def create_app(config_object=None):
         app.logger.info(f"      - Auto Load Models: {backend.get('llm_auto_load')}")
     app.logger.info(f"  - Primary Backend: {app.config.get('primary_backend_name')}")
     app.logger.info(f"  - Routing Backend: {app.config.get('ROUTING_BACKEND_NAME', 'non défini')}")
+    app.logger.info(f"  - Routing Prompt File: {app.config.get('routing_prompt_file', 'non défini')}")
     app.logger.info(f"  - High Availability Strategy: {app.config.get('high_availability_strategy')}")
     app.logger.info(f"  - Rate Limit Default: {app.config.get('RATELIMIT_DEFAULT', 'non défini')}")
     app.logger.info(f"  - Rate Limit Storage: {app.config.get('RATELIMIT_STORAGE_URI', 'en mémoire')}")
