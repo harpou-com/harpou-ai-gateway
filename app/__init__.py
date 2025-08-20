@@ -318,6 +318,10 @@ def create_app(config_object=None):
         app.logger.info(f"  - Outils disponibles: {', '.join(tool_names)}")
     else:
         app.logger.info("  - Outils disponibles: Aucun outil n'a été chargé.")
+    app.logger.info(f"  - Reasoning Loop Budget: {app.config.get('reasoning_loop_budget')}")
+    app.logger.info(f"  - Reasoning Time Budget (s): {app.config.get('reasoning_time_budget_seconds')}")
+    app.logger.info(f"  - Background Loop Budget: {app.config.get('background_loop_budget')}")
+    app.logger.info(f"  - Force Background on Budget Exceeded: {app.config.get('force_background_on_budget_exceeded')}")
     app.logger.info("="*50)
 
     # --- Initialisation des modules et extensions ---

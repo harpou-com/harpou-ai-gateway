@@ -53,7 +53,7 @@
             "properties": {
                 "location": {
                     "type": "string",
-                    "description": "Le lieu textuel (ville, adresse, code postal) pour lequel obtenir la météo. N'accepte pas les coordonnées GPS (latitude/longitude); utilisez l'outil 'get_address_from_coordinates' pour les convertir au préalable."
+                    "description": "Le lieu textuel (ville, adresse, code postal) pour lequel obtenir la météo. ATTENTION: N'accepte pas les coordonnées GPS (latitude/longitude); utilisez l'outil 'get_address_from_coordinates' pour les convertir au préalable."
                 }
             },
             "required": ["location"]

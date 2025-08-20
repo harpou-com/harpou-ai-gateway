@@ -41,11 +41,21 @@
     "LOG_LEVEL": "info",
     "LOG_ROTATION_DAYS": 7,
     "llm_cache_update_interval_minutes": 5,
+    "reasoning_loop_budget": 5,
+    "reasoning_time_budget_seconds": 45,
+    "background_loop_budget": 10,
+    "force_background_on_budget_exceeded": true,
     "api_keys": [
         {
             "key": "sk-my-first-key-for-user1",
-            "owner": "user_1",
-            "rate_limit": "100/hour"
+            "username": "user_1",
+            "displayname": "Utilisateur 1",
+            "email": "user1@example.com",
+            "adresse": "123 Rue Principale, Ville, QC",
+            "language": "fr",
+            "homeassistant_entity": "person.user_one",
+            "persona_prompt_file": "default_persona.txt",
+            "rate_limit": "unlimited"
         }
     ]
 }

@@ -107,6 +107,13 @@ Pour une configuration multi-backends ou de haute disponibilité, utilisez le fi
 -   `LLM_CACHE_MIN_UPDATE`: (Optionnel) Intervalle en minutes pour rafraîchir le cache de la liste des modèles. Par défaut : `5`.
 -   `LLM_BACKEND_TIMEOUT`: (Optionnel) Délai d'attente en secondes pour les requêtes vers les backends LLM. Utile pour les modèles lents à charger. Par défaut : `300`.
 
+#### Agent Autonome (Boucle de Raisonnement)
+
+-   `REASONING_LOOP_BUDGET`: Nombre maximum d'itérations pour la boucle de raisonnement en mode synchrone. Par défaut : `5`.
+-   `REASONING_TIME_BUDGET_SECONDS`: Temps maximum en secondes pour la boucle de raisonnement en mode synchrone. Par défaut : `45`.
+-   `BACKGROUND_LOOP_BUDGET`: Nombre maximum d'itérations pour la boucle de raisonnement une fois passée en arrière-plan. Par défaut : `10`.
+-   `FORCE_BACKGROUND_ON_BUDGET_EXCEEDED`: (`true`/`false`) Si `true`, la tâche notifiera l'utilisateur et continuera en arrière-plan lorsque le budget est épuisé. Par défaut : `true`.
+
 #### Limitation de Débit (Rate Limiting)
 
 -   `RATELIMIT_DEFAULT`: Limite de débit par défaut pour les routes non spécifiquement limitées (ex: `"200 per day;50 per hour"`).

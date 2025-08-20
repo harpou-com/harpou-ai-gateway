@@ -33,6 +33,10 @@
     "LOG_LEVEL": "info",
     "LOG_ROTATION_DAYS": 7,
     "llm_cache_update_interval_minutes": 5,
+    "reasoning_loop_budget": 10,
+    "reasoning_time_budget_seconds": 120,
+    "background_loop_budget": 10,
+    "force_background_on_budget_exceeded": true,
     "users": [
         {
             "key": "sk-my-first-key-for-user1",

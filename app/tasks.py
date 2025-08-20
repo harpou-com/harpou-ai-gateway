@@ -1,3 +1,4 @@
+import eventlet # OLD_CODE_FOR_REMOVAL: Added to fix NameError
 import logging
 import json
 import os
@@ -97,6 +98,67 @@ def get_llm_decision(user_question: str, model_name: str):
         # Il est crucial de relancer l'exception pour que la tâche Celery soit marquée comme FAILED.
         raise
 
+def get_planner_decision(conversation_history: List[Dict[str, Any]], model_name: str, budget_context: Dict[str, Any]):
+    """
+    Appelle le LLM pour déterminer la prochaine étape dans la boucle de raisonnement (planification).
+    Prend en compte l'historique de la conversation et le budget restant.
+    """
+    logger.info(f"Demande de décision au planificateur pour SID: {conversation_history[0].get('sid', 'N/A')}")
+
+    available_tools = current_app.config.get('AVAILABLE_TOOLS', [])
+
+    # Générer dynamiquement les exemples de sortie JSON pour chaque outil
+    tool_examples = []
+    for tool in available_tools:
+        tool_name = tool.get("name")
+        params = tool.get("parameters", {}).get("properties", {})
+        example_params = {p_name: f"valeur pour {p_name}" for p_name in params}
+        example_json = {"action": "call_tool", "tool_name": tool_name, "parameters": example_params}
+        tool_examples.append(f"- Pour utiliser l'outil '{tool_name}': {json.dumps(example_json)}")
+
+    tool_examples.append('- Pour une réponse directe à l\'utilisateur: {"action": "respond_directly", "answer": "Votre réponse ici"}')
+    tool_examples.append('- Pour synthétiser une réponse basée sur les informations collectées: {"action": "synthesize_answer", "summary": "Résumé des informations collectées"}')
+    tool_examples.append('- Pour continuer la boucle de raisonnement en arrière-plan (si le budget le permet): {"action": "continue_in_background"}')
+    examples_str = "\n".join(tool_examples)
+
+    # Charger le template du prompt du planificateur depuis un fichier
+    planner_prompt_file = current_app.config.get("planner_prompt_file", "default_planner.txt") # Assurez-vous que ce fichier existe
+    system_prompt_template = _get_prompt_from_file(planner_prompt_file)
+
+    if not system_prompt_template:
+        logger.error("Le template du prompt du planificateur est manquant ou vide. Utilisation d'un prompt par défaut.")
+        system_prompt_template = """Vous êtes un planificateur d'IA. Votre rôle est de décider de la prochaine action à entreprendre en fonction de l'historique de la conversation et du budget restant.
+Actions possibles: `call_tool`, `respond_directly`, `synthesize_answer`, `continue_in_background`.
+Outils disponibles: {available_tools}.
+Exemples de réponses JSON: {examples_str}.
+Contexte du budget: {budget_context}.
+Historique de la conversation: {conversation_history}
+Votre réponse JSON:"""
+
+    # Remplir les placeholders dans le template
+    system_prompt = system_prompt_template.format(
+        available_tools=json.dumps(available_tools, indent=2),
+        examples_str=examples_str,
+        budget_context=json.dumps(budget_context, indent=2),
+        conversation_history=json.dumps(conversation_history, indent=2)
+    )
+
+    try:
+        llm_response = get_llm_completion(system_prompt, model_name=model_name, json_mode=True)
+
+        if isinstance(llm_response, str):
+            decision = json.loads(llm_response)
+        elif isinstance(llm_response, dict):
+            decision = llm_response
+        else:
+            raise TypeError(f"Type de réponse inattendu du LLM : {type(llm_response)}")
+        logger.info(f"Décision du planificateur reçue : {decision}")
+        return decision
+    except Exception as e:
+        logger.error(f"Échec de l'obtention ou de l'analyse de la décision du planificateur : {e}", exc_info=True)
+        raise
+
+
 def _execute_tool(tool_name: str, parameters: dict, user_question: str) -> str:
     """
     Exécute un outil en fonction de sa configuration (type, détails d'exécution).
@@ -194,7 +256,8 @@ def _execute_tool(tool_name: str, parameters: dict, user_question: str) -> str:
                 url = details.get("url", "") # Fallback si aucun template n'est fourni
 
             logger.info(f"Appel API: {method} {url}")
-            response = requests.request(method, url, headers=headers, timeout=15)
+            # OLD_CODE_FOR_REMOVAL: response = requests.request(method, url, headers=headers, timeout=15)
+            response = eventlet.spawn(requests.request, method, url, headers=headers, timeout=15).wait()
             response.raise_for_status()
             return response.text
 
@@ -340,57 +403,80 @@ def orchestrator_task(sid: str, conversation: List[Dict[str, Any]], model_id: st
                 logger.error(f"Erreur lors de la génération du fallback LLM : {e}")
                 return fallback_prompt
 
-        # --- Étape de Décision ---
-        # Les requêtes internes de Open WebUI pour les titres, tags, etc., commencent par "### Task:".
-        # Celles-ci ne doivent pas passer par la logique d'outils mais être traitées directement.
-        if user_question.strip().startswith("### Task:"):
-            logger.info(f"Requête interne de l'UI détectée pour SID {sid}. Contournement de la logique d'outils.")
-            # On force la décision à "répondre directement" pour sauter l'exécution d'outil.
-            decision = {"action": "respond_directly"}
-        else:
-            # Pour les requêtes utilisateur standard, on appelle le LLM de routage.
-            decision = get_llm_decision(user_question, model_name=routing_model_id)
-
-        # --- Étape de Validation et Normalisation de la Décision ---
-        # On ajoute une couche de validation pour se prémunir contre les "hallucinations"
-        # du LLM de routage, qui peut parfois retourner des outils inexistants ou omettre des paramètres.
-        if decision.get("action") == "call_tool":
-            tool_name_from_llm = decision.get("tool_name") or decision.get("outil")
-            # On vérifie si les paramètres sont présents, même s'ils sont vides.
-            parameters_from_llm = decision.get("parameters") if "parameters" in decision else decision.get("paramètres")
-            
-            available_tools_names = {tool['name'] for tool in current_app.config.get('AVAILABLE_TOOLS', [])}
-
-            # On vérifie que l'outil demandé existe ET que le champ des paramètres est bien présent.
-            if tool_name_from_llm not in available_tools_names or parameters_from_llm is None:
-                log_message = (
-                    f"Le LLM de routage a fourni une décision invalide. "
-                    f"Outil: '{tool_name_from_llm}', Paramètres: {parameters_from_llm}. "
-                    f"Forçage de la réponse directe."
-                )
-                logger.warning(log_message)
-                # On écrase la décision invalide du LLM.
-                decision = {"action": "respond_directly"}
-            else:
-                # Normaliser les clés pour le reste du code au cas où le LLM a utilisé 'outil' ou 'paramètres'.
-                decision['tool_name'] = tool_name_from_llm
-                decision['parameters'] = parameters_from_llm
-
-        # --- Étape d'Exécution de l'Action ---
-        tool_name = decision.get("tool_name")
-        parameters = decision.get("parameters", {})
-        logger.info(f"SID {sid}: Action décidée - Outil: {tool_name}, Décision: {decision}")
+        # Initialisation des variables pour la boucle de raisonnement
+        max_iterations = current_app.config.get("REASONING_LOOP_BUDGET", 1) # Par défaut à 1 pour désactiver la boucle
+        current_iteration = 0
+        start_time = datetime.now()
+        reasoning_time_budget_seconds = current_app.config.get("REASONING_TIME_BUDGET_SECONDS", 45)
 
         tool_results = ""
         synthesis_messages = copy.deepcopy(conversation)
+        final_answer = ""
         
-        if decision.get("action") == "call_tool" and tool_name:
-            try:
-                tool_results = _execute_tool(tool_name, parameters, user_question=user_question)
-                logger.debug(f"Résultat brut de l'outil '{tool_name}':\n---\n{tool_results}\n---")
-            except Exception as e:
-                logger.error(f"Erreur inattendue lors de l'appel à _execute_tool pour '{tool_name}' pour SID {sid}: {e}", exc_info=True)
-                tool_results = f"Erreur critique lors de l'exécution de l'outil : {e}"
+        while current_iteration < max_iterations:
+            current_iteration += 1
+            elapsed_time = (datetime.now() - start_time).total_seconds()
+            
+            budget_context = {
+                "current_iteration": current_iteration,
+                "max_iterations": max_iterations,
+                "elapsed_time_seconds": round(elapsed_time),
+                "remaining_time_seconds": round(reasoning_time_budget_seconds - elapsed_time),
+                "reasoning_time_budget_seconds": reasoning_time_budget_seconds
+            }
+            logger.info(f"SID {sid}: Début de l'itération {current_iteration}. Contexte du budget: {budget_context}")
+
+            # --- Étape de Décision ---
+            # Les requêtes internes de Open WebUI pour les titres, tags, etc., commencent par "### Task:".
+            # Celles-ci ne doivent pas passer par la logique d'outils mais être traitées directement.
+            if user_question.strip().startswith("### Task:"):
+                logger.info(f"Requête interne de l'UI détectée pour SID {sid}. Contournement de la logique d'outils.")
+                # On force la décision à "répondre directement" pour sauter l'exécution d'outil.
+                decision = {"action": "respond_directly"}
+            else:
+                # Pour les requêtes utilisateur standard, on appelle le LLM de routage.
+                decision = get_llm_decision(user_question, model_name=routing_model_id) # OLD_CODE_FOR_REMOVAL: Cette ligne sera remplacée à l'étape 4
+
+            # --- Étape de Validation et Normalisation de la Décision ---
+            # On ajoute une couche de validation pour se prémunir contre les "hallucinations"
+            # du LLM de routage, qui peut parfois retourner des outils inexistants ou omettre des paramètres.
+            if decision.get("action") == "call_tool":
+                tool_name_from_llm = decision.get("tool_name") or decision.get("outil")
+                # On vérifie si les paramètres sont présents, même s'ils sont vides.
+                parameters_from_llm = decision.get("parameters") if "parameters" in decision else decision.get("paramètres")
+                
+                available_tools_names = {tool['name'] for tool in current_app.config.get('AVAILABLE_TOOLS', [])}
+
+                # On vérifie que l'outil demandé existe ET que le champ des paramètres est bien présent.
+                if tool_name_from_llm not in available_tools_names or parameters_from_llm is None:
+                    log_message = (
+                        f"Le LLM de routage a fourni une décision invalide. "
+                        f"Outil: '{tool_name_from_llm}', Paramètres: {parameters_from_llm}. "
+                        f"Forçage de la réponse directe."
+                    )
+                    logger.warning(log_message)
+                    # On écrase la décision invalide du LLM.
+                    decision = {"action": "respond_directly"}
+                else:
+                    # Normaliser les clés pour le reste du code au cas où le LLM a utilisé 'outil' ou 'paramètres'.
+                    decision['tool_name'] = tool_name_from_llm
+                    decision['parameters'] = parameters_from_llm
+
+            # --- Étape d'Exécution de l'Action ---
+            tool_name = decision.get("tool_name")
+            parameters = decision.get("parameters", {})
+            logger.info(f"SID {sid}: Action décidée - Outil: {tool_name}, Décision: {decision}")
+
+            if decision.get("action") == "call_tool" and tool_name:
+                try:
+                    tool_results = _execute_tool(tool_name, parameters, user_question=user_question)
+                    logger.debug(f"Résultat brut de l'outil '{tool_name}':\n---\n{tool_results}\n---")
+                except Exception as e:
+                    logger.error(f"Erreur inattendue lors de l'appel à _execute_tool pour '{tool_name}' pour SID {sid}: {e}", exc_info=True)
+                    tool_results = f"Erreur critique lors de l'exécution de l'outil : {e}"
+            
+            # Pour l'étape 3, nous sortons de la boucle après la première itération
+            break 
 
         # --- Étape de Synthèse Finale ---
         logger.info(f"Début de la synthèse finale pour SID {sid}.")
@@ -448,7 +534,7 @@ Informations de recherche:\n---\n{tool_results}\n---"""
                 stream=False
             )
             final_answer = response_obj.choices[0].message.content
-            logger.info(f"Réponse finale synthétisée pour SID {sid}: '{final_answer[:100]}...'")
+            logger.info(f"Réponse finale synthétisée pour SID {sid}: '{final_answer[:100]}...' ")
 
             # --- Sécurité finale : Ne jamais retourner une réponse vide ---
             if not final_answer or not final_answer.strip():
@@ -525,7 +611,7 @@ def read_webpage_task(url: str) -> str:
     logger.info(f"Début du scraping pour l'URL : {url}")
     try:
         headers = {'User-Agent': 'Harpou-AI-Gateway-Scraper/1.0'}
-        page_response = requests.get(url, timeout=15, headers=headers)
+        page_response = eventlet.spawn(requests.get, url, timeout=15, headers=headers).wait()
         page_response.raise_for_status()
 
         soup = BeautifulSoup(page_response.content, 'html.parser')
